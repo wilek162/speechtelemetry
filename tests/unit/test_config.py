@@ -1,17 +1,19 @@
 """Unit tests for speechtelemetry.config — PipelineConfig validation and defaults."""
+
 import pytest
 from pydantic import ValidationError
+
 from speechtelemetry.config import PipelineConfig
 
 
 def test_default_config():
     cfg = PipelineConfig()
-    assert cfg.device == "auto"
+    assert cfg.device == "cpu"
     assert cfg.asr_backend == "faster-whisper"
     assert cfg.vad_backend == "silero"
     assert cfg.alignment_backend == "whisperx"
     assert cfg.diarization_backend is None
-    assert cfg.prosody_backend == ["parselmouth"]
+    assert cfg.prosody_backend == []
     assert cfg.emotion_backend == "speechbrain"
     assert cfg.export_formats == ["json"]
     assert cfg.asr_beam_size == 5
@@ -20,7 +22,7 @@ def test_default_config():
 
 def test_config_is_frozen():
     cfg = PipelineConfig()
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         cfg.device = "cpu"  # type: ignore[misc]
 
 
@@ -37,6 +39,11 @@ def test_config_cuda_device():
 def test_config_invalid_device():
     with pytest.raises(ValidationError):
         PipelineConfig(device="tpu")  # type: ignore[arg-type]
+
+
+def test_config_auto_device_not_valid():
+    with pytest.raises(ValidationError):
+        PipelineConfig(device="auto")  # type: ignore[arg-type]
 
 
 def test_config_beam_size_bounds():

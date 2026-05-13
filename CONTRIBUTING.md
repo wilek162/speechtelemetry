@@ -14,15 +14,18 @@ Before making any change, consult documents in this priority order:
 
 ## Setup
 
-```bash
+```powershell
 git clone https://github.com/speechtelemetry/speechtelemetry.git
 cd speechtelemetry
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1        # Windows
+# source .venv/bin/activate         # Linux/macOS
 pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 pip install -e ".[dev]"
 pre-commit install
 ```
+
+For GPU setup or a full Windows 11 walkthrough, see [docs/setup_windows.md](docs/setup_windows.md).
 
 ## Running tests
 
@@ -42,19 +45,23 @@ pytest
 1. Create `src/speechtelemetry/backends/<stage>/my_backend.py`
 2. Inherit from the correct ABC in `interfaces.py`
 3. Implement the exact method signature for the stage
-4. Guard imports with `try/except ImportError` and raise `BackendNotAvailableError`
+4. Guard imports with `try/except ImportError` and raise `BackendNotAvailableError` with a clear install hint
 5. Register in `registry.py` with a one-line entry
-6. Add a unit test in `tests/unit/backends/<stage>/test_my_backend.py`
-7. Document the license in `registry.py` and `docs/developer_reference.md`
+6. Add to `pyproject.toml` optional-dependencies
+7. Write a unit test in `tests/unit/backends/<stage>/test_my_backend.py`
+8. Document the license in `registry.py` and `docs/license_policy.md`
+
+See `docs/agent_playbook.md` for the full step-by-step workflow.
 
 ## PR checklist
 
 - [ ] No imports from outer layers into inner layers
-- [ ] New backend has guarded import + clear availability error
-- [ ] New dependency documented with license in `docs/developer_reference.md`
-- [ ] Tests added and passing
+- [ ] New backend has guarded import + clear `BackendNotAvailableError`
+- [ ] New dependency documented with SPDX license in `pyproject.toml` and `docs/license_policy.md`
+- [ ] Tests added and passing (`python -m pytest tests/unit/ -q` exits 0)
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] No hardcoded tokens, secrets, or absolute paths
+- [ ] No bundled model weights
 
 ## Code style
 

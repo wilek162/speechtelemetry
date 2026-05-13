@@ -26,7 +26,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - CLI via Typer (`speechtelemetry transcribe`, `speechtelemetry info`)
 - Unit and integration test scaffolding
 - GitHub Actions CI workflow
-- Full documentation: architecture, backend reference, Windows setup, license policy
+- `docs/spec.md` — product intent, scope, and baseline behavior
+- `docs/architecture.md` — layer model, extension model, design decisions
+- `docs/developer_reference.md` — backend APIs, install commands, configuration reference
+- `docs/setup_windows.md` — complete Windows 11 PowerShell setup guide
+
+### Changed
+- `PipelineConfig.device` now accepts only `"cpu"` or `"cuda"`. The `"auto"` value has been removed. GPU is an explicit opt-in; `"cpu"` is the default.
+- `PipelineConfig.prosody_backend` defaults to `[]` (empty). Prosody is now opt-in. Previously defaulted to `["parselmouth"]`, which is GPL-3.0.
+- `pyproject.toml`: added `[cuda]` optional extra documenting the explicit GPU install path.
+- Pre-flight check error message for `device="cuda"` updated to include the correct `pip install` command.
 
 ---
 

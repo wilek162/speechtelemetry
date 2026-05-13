@@ -36,6 +36,33 @@ List the conditions that must be true when the task is done. Each criterion maps
 
 ### 4. Verify setup
 
+**Always confirm a virtual environment is active before running any install or project command.**
+
+```powershell
+# Check for an active venv (PowerShell)
+python -c "import sys; assert sys.prefix != sys.base_prefix, 'No venv active — activate or create one first'"
+```
+
+If no venv is active, check for an existing local environment first. If one exists, activate it. Otherwise, create and activate a new one:
+
+```powershell
+# Activate existing venv if available
+if (Test-Path .\.venv\Scripts\Activate.ps1) {
+    .\.venv\Scripts\Activate.ps1
+}
+elseif (Test-Path .\venv\Scripts\Activate.ps1) {
+    .\venv\Scripts\Activate.ps1
+}
+else {
+    # Create and activate a new venv
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install -e ".[dev]"
+}
+```
+
+Then confirm the package and suite are ready:
+
 ```powershell
 # Confirm the package is installed editable
 python -c "import speechtelemetry; print(speechtelemetry.__version__)"
@@ -50,14 +77,15 @@ If any unit test fails before you begin, fix it first.
 
 Write the test that fails, then write the code that makes it pass. Tests live in:
 
-| Test type | Location | Purpose |
-|-----------|----------|---------|
-| Unit | `tests/unit/` | Pure logic and data models; no ML deps, no I/O |
-| Integration | `tests/integration/` | Real pipeline flows; requires fixtures and ML backends |
-| Fixture/golden | `tests/fixtures/` + test file | Canonical input → expected output; assert exact output |
-| Setup/preflight | `tests/unit/test_preflight.py` | Package importable, public API intact, env sane |
+| Test type       | Location                       | Purpose                                                |
+| --------------- | ------------------------------ | ------------------------------------------------------ |
+| Unit            | `tests/unit/`                  | Pure logic and data models; no ML deps, no I/O         |
+| Integration     | `tests/integration/`           | Real pipeline flows; requires fixtures and ML backends |
+| Fixture/golden  | `tests/fixtures/` + test file  | Canonical input → expected output; assert exact output |
+| Setup/preflight | `tests/unit/test_preflight.py` | Package importable, public API intact, env sane        |
 
 Rules:
+
 - Unit tests must run in under 1 second total with no external deps.
 - Integration tests are gated with `@pytest.mark.slow` and `skipif` on missing fixtures.
 - Never use `unittest.mock` to mock the database or a real backend in integration tests.
@@ -140,13 +168,13 @@ All three must exit 0.
 
 ## License rules
 
-| Category | Policy |
-|----------|--------|
-| Core library | MIT only. No non-MIT dependency in `dependencies`. |
-| Optional adapters | Listed under `[project.optional-dependencies]` only. |
-| GPL components | Optional adapters only. Never a required default. Warn at `resolve_backend` time via `_LICENSE_FLAGS`. |
-| Model weights | Never bundled. Downloaded at runtime by the backend. |
-| HuggingFace models | Require explicit HF_TOKEN + model license acceptance. Document in `docs/license_policy.md`. |
+| Category           | Policy                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------ |
+| Core library       | MIT only. No non-MIT dependency in `dependencies`.                                                     |
+| Optional adapters  | Listed under `[project.optional-dependencies]` only.                                                   |
+| GPL components     | Optional adapters only. Never a required default. Warn at `resolve_backend` time via `_LICENSE_FLAGS`. |
+| Model weights      | Never bundled. Downloaded at runtime by the backend.                                                   |
+| HuggingFace models | Require explicit HF_TOKEN + model license acceptance. Document in `docs/license_policy.md`.            |
 
 If you are unsure about a license, do not merge. Check `docs/license_policy.md` first.
 
@@ -154,7 +182,7 @@ If you are unsure about a license, do not merge. Check `docs/license_policy.md` 
 
 ## Code quality rules
 
-- **No comments by default.** Add one only when the *why* is non-obvious: a hidden constraint, a subtle invariant, a known upstream bug workaround.
+- **No comments by default.** Add one only when the _why_ is non-obvious: a hidden constraint, a subtle invariant, a known upstream bug workaround.
 - **No over-engineering.** Three similar lines is better than a premature abstraction. No helper functions for one-time operations.
 - **No error handling for impossible cases.** Trust internal invariants and framework guarantees. Validate only at system boundaries.
 - **No feature flags, no backwards-compatibility shims.** Change the code directly.

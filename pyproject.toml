@@ -38,6 +38,10 @@ diarize = ["pyannote.audio>=3.1"]
 prosody = ["praat-parselmouth>=0.4", "copasul>=1.0"]
 emotion = ["speechbrain>=1.0", "transformers>=4.30"]
 cli     = ["typer[all]>=0.9", "rich>=13"]
+# GPU extras: install CUDA-enabled torch BEFORE installing speechtelemetry[cuda].
+# See docs/developer_reference.md for the correct --index-url for your CUDA version.
+# Example: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+cuda    = ["speechtelemetry[asr,align,vad,emotion]"]
 
 # Convenience bundles
 default = ["speechtelemetry[asr,align,vad,emotion,cli]"]

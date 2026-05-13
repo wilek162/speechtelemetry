@@ -8,11 +8,11 @@ Rules:
   - Zero domain logic here.
   - All returned objects are TranscriptDocument or subtypes from types.py.
 """
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from speechtelemetry.config import PipelineConfig
 from speechtelemetry.types import TranscriptDocument
@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 def enrich_media(
     input_path: str | Path,
-    config: Optional[PipelineConfig] = None,
-    output_path: Optional[str | Path] = None,
+    config: PipelineConfig | None = None,
+    output_path: str | Path | None = None,
 ) -> TranscriptDocument:
     """Process any audio or video file through the full speechtelemetry pipeline.
 
@@ -49,7 +49,7 @@ def enrich_media(
 
         doc = enrich_media(
             "interview.mp4",
-            config=PipelineConfig(device="auto"),
+            config=PipelineConfig(device="cpu"),
         )
         for seg in doc.segments:
             print(seg.start, seg.text)
@@ -76,7 +76,7 @@ def enrich_media(
 
 def enrich_audio(
     wav_path: str | Path,
-    config: Optional[PipelineConfig] = None,
+    config: PipelineConfig | None = None,
 ) -> TranscriptDocument:
     """Process a pre-normalized mono 16 kHz WAV file, skipping FFmpeg decode.
 
