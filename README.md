@@ -35,7 +35,7 @@ from speechtelemetry import enrich_media, PipelineConfig
 
 result = enrich_media(
     input_path="interview.mp4",
-    config=PipelineConfig(),          # defaults to device="cpu"
+    config=PipelineConfig(),          # device="auto" by default
 )
 
 for seg in result.segments:
@@ -152,7 +152,7 @@ Prosody has no default backend because the most accessible option (parselmouth) 
 from speechtelemetry import PipelineConfig
 
 config = PipelineConfig(
-    device="cpu",                      # "cpu" (default) or "cuda" (explicit GPU opt-in)
+    device="auto",                     # "auto" (default), "cpu", or "cuda"
     asr_backend="faster-whisper",
     asr_model_size="large-v3",         # "tiny", "small", "medium", "large-v3"
     vad_backend="silero",

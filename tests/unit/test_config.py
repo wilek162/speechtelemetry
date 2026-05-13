@@ -8,7 +8,7 @@ from speechtelemetry.config import PipelineConfig
 
 def test_default_config():
     cfg = PipelineConfig()
-    assert cfg.device == "cpu"
+    assert cfg.device == "auto"
     assert cfg.asr_backend == "faster-whisper"
     assert cfg.vad_backend == "silero"
     assert cfg.alignment_backend == "whisperx"
@@ -41,9 +41,9 @@ def test_config_invalid_device():
         PipelineConfig(device="tpu")  # type: ignore[arg-type]
 
 
-def test_config_auto_device_not_valid():
-    with pytest.raises(ValidationError):
-        PipelineConfig(device="auto")  # type: ignore[arg-type]
+def test_config_auto_device_is_valid():
+    cfg = PipelineConfig(device="auto")
+    assert cfg.device == "auto"
 
 
 def test_config_beam_size_bounds():

@@ -1,5 +1,5 @@
 """Unit tests for speechtelemetry.types — pure data model, zero external deps."""
-import pytest
+
 from speechtelemetry.types import (
     EmotionScore,
     ProcessingReport,

@@ -3,12 +3,13 @@
 Preserves all fields in TranscriptDocument. This is the archival format.
 SRT/VTT/TextGrid are lossy derived views of this.
 """
+
 from __future__ import annotations
 
 import dataclasses
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from speechtelemetry.interfaces import Exporter
 from speechtelemetry.types import TranscriptDocument
@@ -37,7 +38,7 @@ class JsonExporter(Exporter):
         logger.debug("JSON export written to %s", output_path)
 
     @staticmethod
-    def load(input_path: str) -> dict:
+    def load(input_path: str) -> dict[str, Any]:
         """Load a previously exported JSON transcript."""
         with open(input_path, encoding="utf-8") as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))

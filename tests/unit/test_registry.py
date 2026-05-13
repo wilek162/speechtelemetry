@@ -1,5 +1,8 @@
 """Unit tests for speechtelemetry.registry — no real backend imports."""
+
 import pytest
+
+from speechtelemetry.exceptions import BackendNotFoundError
 from speechtelemetry.registry import (
     _REGISTRY,
     get_backend,
@@ -8,7 +11,6 @@ from speechtelemetry.registry import (
     register,
     resolve_backend,
 )
-from speechtelemetry.exceptions import BackendNotFoundError
 
 
 def test_list_stages_has_expected():

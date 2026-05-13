@@ -3,10 +3,11 @@
 License: MIT
 4x faster than original Whisper. int8 quantization on CPU. CTranslate2-based.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import ClassVar, Optional
+from typing import Any, ClassVar
 
 from speechtelemetry.exceptions import BackendNotAvailableError
 from speechtelemetry.interfaces import ASRBackend
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from faster_whisper import WhisperModel
+
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
@@ -30,17 +32,17 @@ class FasterWhisperBackend(ASRBackend):
         self,
         model_size: str = "large-v3",
         device: str = "auto",
-        compute_type: Optional[str] = None,
+        compute_type: str | None = None,
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "faster-whisper is not installed.\n"
-                "Run: pip install faster-whisper"
+                "faster-whisper is not installed.\n" "Run: pip install faster-whisper"
             )
 
         if device == "auto":
             try:
                 import torch  # noqa: PLC0415
+
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             except ImportError:
                 device = "cpu"
@@ -58,17 +60,17 @@ class FasterWhisperBackend(ASRBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "faster-whisper is not installed.\n"
-                "Run: pip install faster-whisper"
+                "faster-whisper is not installed.\n" "Run: pip install faster-whisper"
             )
 
     def transcribe(
         self,
         wav_path: str,
-        language: Optional[str] = None,
+        language: str | None = None,
         beam_size: int = 5,
+        chunk_size_s: float | None = None,
         vad_filter: bool = False,
-    ) -> tuple[list[dict], object]:
+    ) -> tuple[list[dict[str, Any]], object]:
         """Transcribe a WAV file. Returns (segments_list, info).
 
         Note: word_timestamps=False — word-level timestamps come from the alignment stage.
@@ -95,9 +97,8 @@ class FasterWhisperBackend(ASRBackend):
         ]
 
         logger.debug(
-            "faster-whisper: %d segments, lang=%s, RTF=%.2f",
+            "faster-whisper: %d segments, lang=%s",
             len(segments),
             getattr(info, "language", "?"),
-            getattr(info, "duration", 0) and 0,
         )
         return segments, info

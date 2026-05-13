@@ -12,6 +12,7 @@ Typical usage::
         print(seg.start, seg.text, seg.emotion.top_label if seg.emotion else "")
 """
 
+from speechtelemetry import registry  # noqa: F401 — re-exported for registry.register()
 from speechtelemetry.api import enrich_audio, enrich_media
 from speechtelemetry.config import PipelineConfig
 from speechtelemetry.exceptions import (
@@ -40,7 +41,6 @@ from speechtelemetry.types import (
     TranscriptDocument,
     Word,
 )
-from speechtelemetry import registry  # noqa: F401 — re-exported for registry.register()
 
 __version__ = "0.1.0"
 

@@ -3,7 +3,9 @@
 These tests require heavy ML backends and are marked 'slow'.
 Run with: pytest -m slow
 """
+
 import os
+
 import pytest
 
 FIXTURE_WAV = os.path.join(os.path.dirname(__file__), "..", "fixtures", "sample_16k_mono.wav")
@@ -12,7 +14,7 @@ FIXTURE_WAV = os.path.join(os.path.dirname(__file__), "..", "fixtures", "sample_
 @pytest.mark.slow
 @pytest.mark.skipif(not os.path.exists(FIXTURE_WAV), reason="No fixture WAV file present")
 def test_enrich_audio_smoke():
-    from speechtelemetry import enrich_audio, PipelineConfig
+    from speechtelemetry import PipelineConfig, enrich_audio
 
     cfg = PipelineConfig(
         asr_backend="faster-whisper",

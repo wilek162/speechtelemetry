@@ -7,10 +7,11 @@ because GPL is viral. See docs/license_policy.md.
 Provides: F0/pitch, intensity/energy, jitter, shimmer, HNR via Praat algorithms.
 No Praat installation required — binary wheels ship for Win/Linux/macOS.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 try:
     import parselmouth
     from parselmouth.praat import call
+
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
@@ -32,10 +34,6 @@ class ParselmouthBackend(ProsodyBackend):
 
     STAGE: ClassVar[str] = "prosody"
     NAME: ClassVar[str] = "parselmouth"
-
-    # Singleton Sound object — load WAV once per backend instance, extract_part per segment.
-    # Avoids re-opening the file for every segment (major performance win on long audio).
-    _sound_cache: dict[str, object] = {}
 
     def __init__(
         self,
@@ -53,13 +51,13 @@ class ParselmouthBackend(ProsodyBackend):
         self.pitch_floor = pitch_floor
         self.pitch_ceiling = pitch_ceiling
         self.time_step = time_step
+        self._sound_cache: dict[str, object] = {}
 
     @classmethod
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "praat-parselmouth is not installed.\n"
-                "Run: pip install praat-parselmouth"
+                "praat-parselmouth is not installed.\n" "Run: pip install praat-parselmouth"
             )
 
     def _get_sound(self, wav_path: str) -> object:
@@ -73,7 +71,7 @@ class ParselmouthBackend(ProsodyBackend):
         wav_path: str,
         start_s: float,
         end_s: float,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Extract prosody features for a single segment."""
         duration = end_s - start_s
         if duration < 0.04:
@@ -109,7 +107,7 @@ class ParselmouthBackend(ProsodyBackend):
         )
         energy_mean = float(call(intensity, "Get mean", 0, 0, "energy"))
         energy_std = float(call(intensity, "Get standard deviation", 0, 0))
-        energy_variance = energy_std ** 2
+        energy_variance = energy_std**2
 
         # ── Voice Quality ────────────────────────────────────────────────
         jitter: float | None = None
@@ -117,7 +115,9 @@ class ParselmouthBackend(ProsodyBackend):
         hnr: float | None = None
 
         try:
-            point_process = call(snd, "To PointProcess (periodic, cc)", self.pitch_floor, self.pitch_ceiling)
+            point_process = call(
+                snd, "To PointProcess (periodic, cc)", self.pitch_floor, self.pitch_ceiling
+            )
             jitter = float(call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3))
             shimmer = float(
                 call([snd, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6)

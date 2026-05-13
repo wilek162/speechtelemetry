@@ -3,6 +3,7 @@
 Lossy: only text and timestamps are preserved.
 Speaker labels, prosody, emotion, and word-level data are dropped.
 """
+
 from __future__ import annotations
 
 import logging

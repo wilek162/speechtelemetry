@@ -3,10 +3,11 @@
 Validates the WAV file produced by ffmpeg.py and provides chunking utilities.
 No ML, no decode logic. Pure I/O validation.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -27,23 +28,20 @@ def validate_wav(wav_path: str) -> dict[str, object]:
         import soundfile as sf  # noqa: PLC0415
     except ImportError as exc:
         raise ImportError(
-            "soundfile is required for WAV validation.\n"
-            "pip install soundfile"
+            "soundfile is required for WAV validation.\n" "pip install soundfile"
         ) from exc
 
     info = sf.info(wav_path)
 
     errors = []
     if info.samplerate != EXPECTED_SAMPLE_RATE:
-        errors.append(
-            f"Sample rate {info.samplerate} Hz != expected {EXPECTED_SAMPLE_RATE} Hz"
-        )
+        errors.append(f"Sample rate {info.samplerate} Hz != expected {EXPECTED_SAMPLE_RATE} Hz")
     if info.channels != EXPECTED_CHANNELS:
         errors.append(f"Channels {info.channels} != expected {EXPECTED_CHANNELS}")
 
     if errors:
         raise ValueError(
-            f"WAV file does not match canonical format:\n"
+            "WAV file does not match canonical format:\n"
             + "\n".join(f"  - {e}" for e in errors)
             + f"\nFile: {wav_path}"
         )

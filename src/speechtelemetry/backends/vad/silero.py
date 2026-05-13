@@ -3,6 +3,7 @@
 License: MIT
 No token required. ~2 MB model auto-downloads from HuggingFace Hub.
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,8 +15,9 @@ from speechtelemetry.interfaces import VADBackend
 logger = logging.getLogger(__name__)
 
 try:
-    from silero_vad import get_speech_timestamps, load_silero_vad, read_audio
     import torch
+    from silero_vad import get_speech_timestamps, load_silero_vad, read_audio
+
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
@@ -36,8 +38,7 @@ class SileroVADBackend(VADBackend):
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "silero-vad is not installed.\n"
-                "Run: pip install silero-vad"
+                "silero-vad is not installed.\n" "Run: pip install silero-vad"
             )
         torch.set_num_threads(1)  # important for deterministic CPU results
         self.model = load_silero_vad()
@@ -50,8 +51,7 @@ class SileroVADBackend(VADBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "silero-vad is not installed.\n"
-                "Run: pip install silero-vad"
+                "silero-vad is not installed.\n" "Run: pip install silero-vad"
             )
 
     def get_speech_intervals(self, wav_path: str) -> list[dict[str, float]]:
@@ -67,4 +67,4 @@ class SileroVADBackend(VADBackend):
             speech_pad_ms=self.speech_pad_ms,
         )
         logger.debug("Silero VAD: %d speech intervals detected", len(timestamps))
-        return timestamps
+        return timestamps  # type: ignore[no-any-return]

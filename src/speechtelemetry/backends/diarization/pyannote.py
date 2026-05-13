@@ -3,11 +3,12 @@
 License: MIT (library) + CC-BY-4.0 (model weights)
 Requires: HF_TOKEN environment variable + model license acceptance.
 """
+
 from __future__ import annotations
 
 import logging
 import os
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from speechtelemetry.exceptions import BackendNotAvailableError
 from speechtelemetry.interfaces import DiarizationBackend
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from pyannote.audio import Pipeline
+
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
@@ -46,7 +48,7 @@ class PyannoteBackend(DiarizationBackend):
 
         hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
         if not hf_token:
-            raise EnvironmentError(
+            raise OSError(
                 "HF_TOKEN environment variable not set.\n"
                 "Required for pyannote.audio diarization.\n"
                 "Steps:\n"
@@ -59,6 +61,7 @@ class PyannoteBackend(DiarizationBackend):
         if device == "auto":
             try:
                 import torch  # noqa: PLC0415
+
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             except ImportError:
                 device = "cpu"
@@ -68,6 +71,7 @@ class PyannoteBackend(DiarizationBackend):
 
         try:
             import torch  # noqa: PLC0415
+
             self.pipeline.to(torch.device(device))
         except Exception as exc:
             logger.warning("Could not move pyannote pipeline to %s: %s", device, exc)
@@ -76,22 +80,21 @@ class PyannoteBackend(DiarizationBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "pyannote.audio is not installed.\n"
-                "Run: pip install pyannote.audio"
+                "pyannote.audio is not installed.\n" "Run: pip install pyannote.audio"
             )
 
     def diarize(
         self,
         wav_path: str,
-        min_speakers: Optional[int] = None,
-        max_speakers: Optional[int] = None,
-    ) -> list[dict]:
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
+    ) -> list[dict[str, object]]:
         """Assign speaker labels to time intervals.
 
         Returns [{"start": float, "end": float, "speaker": str}].
         Speaker format: "SPEAKER_00", "SPEAKER_01", etc.
         """
-        kwargs: dict = {}
+        kwargs: dict[str, int] = {}
         if min_speakers is not None:
             kwargs["min_speakers"] = min_speakers
         if max_speakers is not None:

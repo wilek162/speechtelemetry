@@ -1,5 +1,7 @@
 """Shared pytest fixtures and configuration."""
+
 import pytest
+
 from speechtelemetry.types import ProcessingReport, Segment, SilenceSpan, TranscriptDocument
 
 

@@ -9,9 +9,11 @@ Rules:
   - Only imports from speechtelemetry.types (the domain core).
   - Method signatures here ARE the backend contract. Do not deviate.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, ClassVar
 
 from speechtelemetry.types import TranscriptDocument
 
@@ -19,7 +21,7 @@ from speechtelemetry.types import TranscriptDocument
 class VADBackend(ABC):
     """Voice Activity Detection backend contract."""
 
-    STAGE: str = "vad"
+    STAGE: ClassVar[str] = "vad"
 
     @abstractmethod
     def get_speech_intervals(self, wav_path: str) -> list[dict[str, float]]:
@@ -29,7 +31,7 @@ class VADBackend(ABC):
             List of {"start": float, "end": float} dicts, in seconds.
         """
 
-    @classmethod
+    @classmethod  # noqa: B027
     def _check_available(cls) -> None:
         """Raise BackendNotAvailableError if the backend's dependencies are missing.
 
@@ -41,7 +43,7 @@ class VADBackend(ABC):
 class ASRBackend(ABC):
     """Automatic Speech Recognition backend contract."""
 
-    STAGE: str = "asr"
+    STAGE: ClassVar[str] = "asr"
 
     @abstractmethod
     def transcribe(
@@ -49,7 +51,8 @@ class ASRBackend(ABC):
         wav_path: str,
         language: str | None = None,
         beam_size: int = 5,
-    ) -> tuple[list[dict], object]:
+        chunk_size_s: float | None = None,
+    ) -> tuple[list[dict[str, Any]], object]:
         """Transcribe a mono 16 kHz WAV file.
 
         Returns:
@@ -58,22 +61,22 @@ class ASRBackend(ABC):
             info is a backend-specific object (may be None).
         """
 
-    @classmethod
+    @classmethod  # noqa: B027
     def _check_available(cls) -> None: ...
 
 
 class AlignmentBackend(ABC):
     """Forced alignment backend contract."""
 
-    STAGE: str = "alignment"
+    STAGE: ClassVar[str] = "alignment"
 
     @abstractmethod
     def align(
         self,
-        segments: list[dict],
+        segments: list[dict[str, Any]],
         audio_path: str,
         language: str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Refine segment timestamps to word level via forced alignment.
 
         Returns:
@@ -81,14 +84,14 @@ class AlignmentBackend(ABC):
             [{"word": str, "start": float, "end": float, "score": float}, ...]
         """
 
-    @classmethod
+    @classmethod  # noqa: B027
     def _check_available(cls) -> None: ...
 
 
 class DiarizationBackend(ABC):
     """Speaker diarization backend contract."""
 
-    STAGE: str = "diarization"
+    STAGE: ClassVar[str] = "diarization"
 
     @abstractmethod
     def diarize(
@@ -104,14 +107,14 @@ class DiarizationBackend(ABC):
             Speaker format: "SPEAKER_00", "SPEAKER_01", etc.
         """
 
-    @classmethod
+    @classmethod  # noqa: B027
     def _check_available(cls) -> None: ...
 
 
 class ProsodyBackend(ABC):
     """Prosody feature extraction backend contract."""
 
-    STAGE: str = "prosody"
+    STAGE: ClassVar[str] = "prosody"
 
     @abstractmethod
     def extract_segment(
@@ -128,14 +131,14 @@ class ProsodyBackend(ABC):
              "energy_mean": float, "energy_variance": float}
         """
 
-    @classmethod
+    @classmethod  # noqa: B027
     def _check_available(cls) -> None: ...
 
 
 class EmotionBackend(ABC):
     """Speech emotion recognition backend contract."""
 
-    STAGE: str = "emotion"
+    STAGE: ClassVar[str] = "emotion"
 
     @abstractmethod
     def predict_segment(
@@ -153,14 +156,14 @@ class EmotionBackend(ABC):
              "backend_name": str}
         """
 
-    @classmethod
+    @classmethod  # noqa: B027
     def _check_available(cls) -> None: ...
 
 
 class Exporter(ABC):
     """Output serialization backend contract."""
 
-    STAGE: str = "exporter"
+    STAGE: ClassVar[str] = "exporter"
 
     @abstractmethod
     def export(self, doc: TranscriptDocument, output_path: str) -> None:

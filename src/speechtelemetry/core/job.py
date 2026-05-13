@@ -10,6 +10,7 @@ Rules:
   - No domain logic here. Lifecycle and file paths only.
   - Always clean up in finally/__exit__, even on exceptions.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +19,6 @@ import shutil
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from speechtelemetry.config import PipelineConfig
 
@@ -31,10 +31,10 @@ class Job:
     def __init__(self, input_path: str) -> None:
         self.input_path = input_path
         self.job_id = str(uuid.uuid4())[:8]
-        self._temp_dir: Optional[str] = None
-        self.output_dir: Optional[str] = None
+        self._temp_dir: str | None = None
+        self.output_dir: str | None = None
 
-    def __enter__(self) -> "Job":
+    def __enter__(self) -> Job:
         self._temp_dir = tempfile.mkdtemp(prefix=f"st_{self.job_id}_")
         logger.debug("Job %s: temp dir %s", self.job_id, self._temp_dir)
         return self
@@ -82,7 +82,9 @@ class Job:
 
         Returns the path to the decoded WAV file.
         """
+        from speechtelemetry.io.audio_normalize import validate_wav  # noqa: PLC0415
         from speechtelemetry.io.ffmpeg import normalize_to_wav  # noqa: PLC0415
 
         normalize_to_wav(input_path, self.temp_wav)
+        validate_wav(self.temp_wav)
         return self.temp_wav

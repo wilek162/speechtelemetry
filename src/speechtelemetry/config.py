@@ -24,12 +24,11 @@ class PipelineConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     # ── Device ────────────────────────────────────────────────────────────────
-    device: Literal["cpu", "cuda"] = Field(
-        default="cpu",
+    device: Literal["auto", "cpu", "cuda"] = Field(
+        default="auto",
         description=(
-            "Inference device. 'cpu' is the default. "
-            "Set 'cuda' explicitly after installing a CUDA-enabled torch: "
-            "pip install speechtelemetry[cuda]"
+            "Inference device. 'auto' selects CUDA if available, else CPU. "
+            "Resolution happens in the backend layer, not here."
         ),
     )
 
@@ -96,7 +95,7 @@ class PipelineConfig(BaseModel):
 
     # ── Export ────────────────────────────────────────────────────────────────
     export_formats: list[Literal["json", "srt", "vtt", "textgrid"]] = Field(
-        default_factory=lambda: ["json"],
+        default_factory=lambda: ["json"],  # type: ignore[arg-type]
         description="Output formats. JSON is the authoritative lossless format.",
     )
 

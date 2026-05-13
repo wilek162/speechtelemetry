@@ -8,13 +8,14 @@ Rules:
   - register() is the public extension point for external users and third-party packages.
   - _autodiscover() loads entry-point-registered backends at module import time.
 """
+
 from __future__ import annotations
 
 import importlib
 import importlib.metadata
 import logging
 import warnings
-from typing import Any, Type
+from typing import Any
 
 from speechtelemetry.exceptions import BackendNotFoundError
 
@@ -73,7 +74,7 @@ _LICENSE_FLAGS: dict[str, str] = {
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
-def register(stage: str, name: str, cls: Type) -> None:  # type: ignore[type-arg]
+def register(stage: str, name: str, cls: type[Any]) -> None:
     """Register a backend class for a given stage and name.
 
     This is the primary extension point. Call before enrich_media() to add
@@ -98,10 +99,10 @@ def register(stage: str, name: str, cls: Type) -> None:  # type: ignore[type-arg
     _CLASS_CACHE[f"{stage}:{name}"] = cls
 
 
-_CLASS_CACHE: dict[str, Type] = {}  # type: ignore[type-arg]
+_CLASS_CACHE: dict[str, type[Any]] = {}
 
 
-def resolve_backend(stage: str, name: str) -> Type:  # type: ignore[type-arg]
+def resolve_backend(stage: str, name: str) -> type[Any]:
     """Resolve a backend name to its class.
 
     Raises:
@@ -132,7 +133,7 @@ def resolve_backend(stage: str, name: str) -> Type:  # type: ignore[type-arg]
             f"Original error: {exc}"
         ) from exc
 
-    cls = getattr(module, class_name)
+    cls: type[Any] = getattr(module, class_name)
 
     # Warn about GPL-licensed backends at resolution time
     if path in _LICENSE_FLAGS:

@@ -15,9 +15,11 @@ import os
 import shutil
 import time
 import tracemalloc
+from typing import Any
 
 from speechtelemetry.config import PipelineConfig
 from speechtelemetry.exceptions import EnvironmentCheckError
+from speechtelemetry.provenance import PipelineProvenance
 from speechtelemetry.registry import get_backend, resolve_backend
 from speechtelemetry.types import (
     EmotionScore,
@@ -123,6 +125,7 @@ def run_pipeline(
     preflight_check(config)
 
     report = ProcessingReport()
+    provenance = PipelineProvenance()
     tracemalloc.start()
 
     with Job(input_path) as job:
@@ -140,7 +143,7 @@ def run_pipeline(
         audio_duration_s = _get_duration(wav_path)
 
         # ── Stage 3: VAD ──────────────────────────────────────────────────
-        speech_intervals: list[dict] = []
+        speech_intervals: list[dict[str, Any]] = []
         silence_spans: list[SilenceSpan] = []
         try:
             t0 = time.perf_counter()
@@ -148,6 +151,7 @@ def run_pipeline(
             speech_intervals = vad.get_speech_intervals(wav_path)
             silence_spans = _compute_silence_spans(speech_intervals, audio_duration_s)
             report.stage_timings["vad"] = time.perf_counter() - t0
+            provenance.record("vad", config.vad_backend)
             logger.info("VAD: %d speech intervals found", len(speech_intervals))
         except Exception as exc:
             report.add_error("vad", exc)
@@ -155,18 +159,23 @@ def run_pipeline(
             speech_intervals = [{"start": 0.0, "end": audio_duration_s}]
 
         # ── Stage 4: ASR ──────────────────────────────────────────────────
-        raw_segments: list[dict] = []
+        raw_segments: list[dict[str, Any]] = []
         detected_language: str | None = None
         try:
             t0 = time.perf_counter()
             asr = get_backend("asr", config.asr_backend)
-            raw_segments, info = asr.transcribe(
-                wav_path,
-                language=config.asr_language,
-                beam_size=config.asr_beam_size,
-            )
+            asr_kwargs: dict[str, Any] = {
+                "language": config.asr_language,
+                "beam_size": config.asr_beam_size,
+            }
+            if config.chunk_audio:
+                asr_kwargs["chunk_size_s"] = config.max_chunk_duration_s
+            raw_segments, info = asr.transcribe(wav_path, **asr_kwargs)
             detected_language = getattr(info, "language", None) or config.asr_language
             report.stage_timings["asr"] = time.perf_counter() - t0
+            provenance.record(
+                "asr", config.asr_backend, model_id=config.asr_model_size, device=config.device
+            )
             logger.info(
                 "ASR: %d segments transcribed (lang=%s)", len(raw_segments), detected_language
             )
@@ -182,13 +191,14 @@ def run_pipeline(
                 aligner = get_backend("alignment", config.alignment_backend)
                 raw_segments = aligner.align(raw_segments, wav_path, detected_language)
                 report.stage_timings["alignment"] = time.perf_counter() - t0
+                provenance.record("alignment", config.alignment_backend)
                 logger.info("Alignment: word timestamps added to %d segments", len(raw_segments))
             except Exception as exc:
                 report.add_error("alignment", exc)
                 logger.warning("Alignment failed, keeping segment-level timestamps: %s", exc)
 
         # ── Stage 6: Diarization ──────────────────────────────────────────
-        diarize_output: list[dict] = []
+        diarize_output: list[dict[str, Any]] = []
         if config.diarization_backend:
             try:
                 t0 = time.perf_counter()
@@ -206,34 +216,13 @@ def run_pipeline(
 
         # ── Build Segment objects ─────────────────────────────────────────
         segments = _build_segments(raw_segments, diarize_output)
+        segments = _attach_silence_gaps(segments, silence_spans)
 
         # ── Stage 7: Prosody ──────────────────────────────────────────────
         segments = _attach_prosody(segments, wav_path, config, report)
 
         # ── Stage 8: Emotion ──────────────────────────────────────────────
         segments = _attach_emotion(segments, wav_path, config, report)
-
-        # ── Stage 9: Export ───────────────────────────────────────────────
-        if job.output_dir:
-            for fmt in config.export_formats:
-                try:
-                    exporter = get_backend("exporter", fmt)
-                    out_path = job.output_path(fmt)
-                    exporter.export(
-                        TranscriptDocument(
-                            source_path=input_path,
-                            language=detected_language,
-                            duration_s=audio_duration_s,
-                            segments=segments,
-                            silence_spans=silence_spans,
-                            processing_report=report,
-                        ),
-                        out_path,
-                    )
-                    logger.info("Exported %s to %s", fmt, out_path)
-                except Exception as exc:
-                    report.add_error(f"export:{fmt}", exc)
-                    logger.error("Export to %s failed: %s", fmt, exc)
 
         # ── Finalize report ───────────────────────────────────────────────
         wall_time = time.perf_counter() - audio_start
@@ -251,14 +240,29 @@ def run_pipeline(
         except ImportError:
             pass
 
-        return TranscriptDocument(
+        doc = TranscriptDocument(
             source_path=input_path,
             language=detected_language,
             duration_s=audio_duration_s,
             segments=segments,
             silence_spans=silence_spans,
             processing_report=report,
+            provenance=provenance,
         )
+
+        # ── Stage 9: Export ───────────────────────────────────────────────
+        if job.output_dir:
+            for fmt in config.export_formats:
+                try:
+                    exporter = get_backend("exporter", fmt)
+                    out_path = job.output_path(fmt)
+                    exporter.export(doc, out_path)
+                    logger.info("Exported %s to %s", fmt, out_path)
+                except Exception as exc:
+                    report.add_error(f"export:{fmt}", exc)
+                    logger.error("Export to %s failed: %s", fmt, exc)
+
+        return doc
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
@@ -270,13 +274,13 @@ def _get_duration(wav_path: str) -> float:
         import soundfile as sf  # noqa: PLC0415
 
         info = sf.info(wav_path)
-        return info.duration
+        return float(info.duration)
     except Exception:
         return 0.0
 
 
 def _compute_silence_spans(
-    speech_intervals: list[dict],
+    speech_intervals: list[dict[str, Any]],
     total_duration_s: float,
 ) -> list[SilenceSpan]:
     spans: list[SilenceSpan] = []
@@ -307,8 +311,8 @@ def _compute_silence_spans(
 
 
 def _build_segments(
-    raw_segments: list[dict],
-    diarize_output: list[dict],
+    raw_segments: list[dict[str, Any]],
+    diarize_output: list[dict[str, Any]],
 ) -> list[Segment]:
     """Convert raw dicts from ASR/alignment into typed Segment objects."""
     segments: list[Segment] = []
@@ -344,6 +348,20 @@ def _build_segments(
                 words=words,
             )
         )
+    return segments
+
+
+def _attach_silence_gaps(
+    segments: list[Segment],
+    silence_spans: list[SilenceSpan],
+) -> list[Segment]:
+    """Populate silence_before_ms and silence_after_ms on each Segment."""
+    for seg in segments:
+        for span in silence_spans:
+            if abs(span.end - seg.start) < 0.05:
+                seg.silence_before_ms = span.duration_ms
+            if abs(span.start - seg.end) < 0.05:
+                seg.silence_after_ms = span.duration_ms
     return segments
 
 

@@ -1,5 +1,7 @@
 """Unit tests for speechtelemetry.exceptions — hierarchy and messages."""
+
 import pytest
+
 from speechtelemetry.exceptions import (
     BackendError,
     BackendNotAvailableError,

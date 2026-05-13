@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from speechtelemetry.config import PipelineConfig
 from speechtelemetry.types import TranscriptDocument
@@ -107,20 +108,20 @@ def enrich_audio(
 # Documented as advanced/unstable — signature may change in minor versions.
 
 
-def run_vad(wav_path: str, config: PipelineConfig) -> list[dict]:
+def run_vad(wav_path: str, config: PipelineConfig) -> list[dict[str, float]]:
     """Run VAD only. Returns list of {"start": float, "end": float} dicts."""
     from speechtelemetry.registry import get_backend
 
     backend = get_backend("vad", config.vad_backend)
-    return backend.get_speech_intervals(wav_path)
+    return backend.get_speech_intervals(wav_path)  # type: ignore[no-any-return]
 
 
-def run_asr(wav_path: str, config: PipelineConfig) -> tuple[list[dict], object]:
+def run_asr(wav_path: str, config: PipelineConfig) -> tuple[list[dict[str, Any]], object]:
     """Run ASR only. Returns (segments, info)."""
     from speechtelemetry.registry import get_backend
 
     backend = get_backend("asr", config.asr_backend)
-    return backend.transcribe(
+    return backend.transcribe(  # type: ignore[no-any-return]
         wav_path,
         language=config.asr_language,
         beam_size=config.asr_beam_size,
@@ -128,40 +129,40 @@ def run_asr(wav_path: str, config: PipelineConfig) -> tuple[list[dict], object]:
 
 
 def run_alignment(
-    segments: list[dict],
+    segments: list[dict[str, Any]],
     wav_path: str,
     language: str,
     config: PipelineConfig,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Run forced alignment only. Returns segments with word-level timestamps."""
     from speechtelemetry.registry import get_backend
 
     backend = get_backend("alignment", config.alignment_backend)
-    return backend.align(segments, wav_path, language)
+    return backend.align(segments, wav_path, language)  # type: ignore[no-any-return]
 
 
-def run_diarization(wav_path: str, config: PipelineConfig) -> list[dict]:
+def run_diarization(wav_path: str, config: PipelineConfig) -> list[dict[str, Any]]:
     """Run diarization only. Returns speaker-labeled time intervals."""
     if not config.diarization_backend:
         return []
     from speechtelemetry.registry import get_backend
 
     backend = get_backend("diarization", config.diarization_backend)
-    return backend.diarize(
+    return backend.diarize(  # type: ignore[no-any-return]
         wav_path,
         min_speakers=config.diarization_min_speakers,
         max_speakers=config.diarization_max_speakers,
     )
 
 
-def run_prosody(segments: list, wav_path: str, config: PipelineConfig) -> list:
+def run_prosody(segments: list[Any], wav_path: str, config: PipelineConfig) -> list[Any]:
     """Run prosody extraction on a list of segments. Returns updated segments."""
     from speechtelemetry.core.pipeline import _attach_prosody
 
     return _attach_prosody(segments, wav_path, config)
 
 
-def run_emotion(segments: list, wav_path: str, config: PipelineConfig) -> list:
+def run_emotion(segments: list[Any], wav_path: str, config: PipelineConfig) -> list[Any]:
     """Run emotion recognition on a list of segments. Returns updated segments."""
     from speechtelemetry.core.pipeline import _attach_emotion
 
