@@ -9,6 +9,7 @@ Rules:
   - Only imports from speechtelemetry.types (the domain core).
   - Method signatures here ARE the backend contract. Do not deviate.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

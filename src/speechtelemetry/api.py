@@ -25,6 +25,7 @@ def enrich_media(
     input_path: str | Path,
     config: PipelineConfig | None = None,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
 ) -> TranscriptDocument:
     """Process any audio or video file through the full speechtelemetry pipeline.
 
@@ -34,7 +35,11 @@ def enrich_media(
     Args:
         input_path: Path to any audio or video file supported by FFmpeg.
         config: Pipeline configuration. Uses PipelineConfig() defaults if None.
-        output_path: Optional path to write the JSON export as a side effect.
+        output_path: Optional path for a single JSON export (side effect, any location).
+        output_dir: Optional directory to write all config.export_formats outputs.
+            Output file names are derived from the input file stem.
+            Example: output_dir="out/", export_formats=["json","srt"] →
+                     out/<stem>.json, out/<stem>.srt
 
     Returns:
         TranscriptDocument containing all pipeline outputs.
@@ -50,10 +55,9 @@ def enrich_media(
 
         doc = enrich_media(
             "interview.mp4",
-            config=PipelineConfig(device="cpu"),
+            config=PipelineConfig(device="cpu", export_formats=["json", "srt"]),
+            output_dir="transcripts/",
         )
-        for seg in doc.segments:
-            print(seg.start, seg.text)
     """
     from speechtelemetry.core.pipeline import run_pipeline
 
@@ -64,7 +68,7 @@ def enrich_media(
     if config is None:
         config = PipelineConfig()
 
-    doc = run_pipeline(str(input_path), config)
+    doc = run_pipeline(str(input_path), config, output_dir=output_dir)
 
     if output_path is not None:
         from speechtelemetry.exporters.json_exporter import JsonExporter
@@ -78,6 +82,7 @@ def enrich_media(
 def enrich_audio(
     wav_path: str | Path,
     config: PipelineConfig | None = None,
+    output_dir: str | Path | None = None,
 ) -> TranscriptDocument:
     """Process a pre-normalized mono 16 kHz WAV file, skipping FFmpeg decode.
 
@@ -87,6 +92,7 @@ def enrich_audio(
     Args:
         wav_path: Path to a mono 16 kHz PCM WAV file.
         config: Pipeline configuration. Uses PipelineConfig() defaults if None.
+        output_dir: Optional directory to write all config.export_formats outputs.
 
     Returns:
         TranscriptDocument.
@@ -100,7 +106,7 @@ def enrich_audio(
     if config is None:
         config = PipelineConfig()
 
-    return run_pipeline(str(wav_path), config, skip_decode=True)
+    return run_pipeline(str(wav_path), config, skip_decode=True, output_dir=output_dir)
 
 
 # ── Stage-level APIs (advanced use) ───────────────────────────────────────────

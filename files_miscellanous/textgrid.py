@@ -1,4 +1,5 @@
 """Praat TextGrid exporter — for phonetics toolchain integration."""
+
 from __future__ import annotations
 
 import logging
@@ -18,10 +19,10 @@ class TextGridExporter(Exporter):
             'File type = "ooTextFile"',
             'Object class = "TextGrid"',
             "",
-            f"xmin = 0",
+            "xmin = 0",
             f"xmax = {duration:.6f}",
             "tiers? <exists>",
-            f"size = 2",
+            "size = 2",
             "item []:",
         ]
 

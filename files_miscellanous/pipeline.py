@@ -7,6 +7,7 @@ Rules:
   - Hard failures (FFmpeg missing, HF_TOKEN missing) raise before any compute.
   - This module owns: stage ordering, fail-soft logic, timing, nothing else.
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,7 +15,6 @@ import os
 import shutil
 import time
 import tracemalloc
-from typing import Optional
 
 from speechtelemetry.config import PipelineConfig
 from speechtelemetry.exceptions import EnvironmentCheckError
@@ -25,7 +25,6 @@ from speechtelemetry.types import (
     ProsodyWindow,
     Segment,
     SilenceSpan,
-    StageError,
     TranscriptDocument,
     Word,
 )
@@ -153,7 +152,7 @@ def run_pipeline(
 
         # ── Stage 4: ASR ──────────────────────────────────────────────────
         raw_segments: list[dict] = []
-        detected_language: Optional[str] = None
+        detected_language: str | None = None
         try:
             t0 = time.perf_counter()
             asr = get_backend("asr", config.asr_backend)
@@ -164,7 +163,9 @@ def run_pipeline(
             )
             detected_language = getattr(info, "language", None) or config.asr_language
             report.stage_timings["asr"] = time.perf_counter() - t0
-            logger.info("ASR: %d segments transcribed (lang=%s)", len(raw_segments), detected_language)
+            logger.info(
+                "ASR: %d segments transcribed (lang=%s)", len(raw_segments), detected_language
+            )
         except Exception as exc:
             report.add_error("asr", exc)
             logger.error("ASR failed: %s", exc)
@@ -321,7 +322,7 @@ def _build_segments(
             ]
 
         # Assign speaker from diarization output using midpoint overlap
-        speaker: Optional[str] = None
+        speaker: str | None = None
         if diarize_output:
             seg_mid = (raw.get("start", 0.0) + raw.get("end", 0.0)) / 2
             for turn in diarize_output:
@@ -346,7 +347,7 @@ def _attach_prosody(
     segments: list[Segment],
     wav_path: str,
     config: PipelineConfig,
-    report: Optional[ProcessingReport] = None,
+    report: ProcessingReport | None = None,
 ) -> list[Segment]:
     """Attach prosody features to each segment. Fail-soft per segment."""
     if not config.prosody_backend:
@@ -399,7 +400,7 @@ def _attach_emotion(
     segments: list[Segment],
     wav_path: str,
     config: PipelineConfig,
-    report: Optional[ProcessingReport] = None,
+    report: ProcessingReport | None = None,
 ) -> list[Segment]:
     """Attach emotion scores to each segment. Fail-soft per segment."""
     if not config.emotion_backend:

@@ -525,6 +525,6 @@ Use this checklist before merging any new backend or pipeline stage.
 ### Quality gates
 - [ ] `python -m pytest tests/unit/ -q` exits 0.
 - [ ] `ruff check src/ tests/` exits 0.
-- [ ] `black --check src/ tests/` exits 0.
+- [ ] `ruff format --check src/ tests/` exits 0.
 - [ ] `mypy src/` exits 0.
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`.

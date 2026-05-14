@@ -57,7 +57,7 @@ class ParselmouthBackend(ProsodyBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "praat-parselmouth is not installed.\n" "Run: pip install praat-parselmouth"
+                "praat-parselmouth is not installed.\nRun: pip install praat-parselmouth"
             )
 
     def _get_sound(self, wav_path: str) -> object:

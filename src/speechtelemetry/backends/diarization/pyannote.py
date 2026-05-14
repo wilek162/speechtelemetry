@@ -80,7 +80,7 @@ class PyannoteBackend(DiarizationBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "pyannote.audio is not installed.\n" "Run: pip install pyannote.audio"
+                "pyannote.audio is not installed.\nRun: pip install pyannote.audio"
             )
 
     def diarize(

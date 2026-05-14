@@ -3,6 +3,7 @@
 Preserves all fields in TranscriptDocument. This is the archival format.
 SRT/VTT/TextGrid are lossy derived views of this.
 """
+
 from __future__ import annotations
 
 import dataclasses

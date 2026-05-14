@@ -28,7 +28,7 @@ def validate_wav(wav_path: str) -> dict[str, object]:
         import soundfile as sf  # noqa: PLC0415
     except ImportError as exc:
         raise ImportError(
-            "soundfile is required for WAV validation.\n" "pip install soundfile"
+            "soundfile is required for WAV validation.\npip install soundfile"
         ) from exc
 
     info = sf.info(wav_path)

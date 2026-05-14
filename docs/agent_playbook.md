@@ -130,13 +130,23 @@ Fix all failures before proceeding. Do not bypass pre-commit hooks.
 
 ```powershell
 ruff check src/ tests/
-black src/ tests/
+ruff format --check src/ tests/
 mypy src/
 ```
 
 All three must exit 0.
 
-### 9. Prepare for main
+### 9. Run pre-commit
+
+Run pre-commit before every commit. It must exit 0 — no exceptions.
+
+```powershell
+pre-commit run --all-files
+```
+
+If hooks modify files (e.g. ruff auto-fix), stage the changes and re-run until clean.
+
+### 10. Prepare for main
 
 - Update `CHANGELOG.md` under `[Unreleased]`.
 - Confirm the PR checklist below.
@@ -198,7 +208,8 @@ If you are unsure about a license, do not merge. Check `docs/license_policy.md` 
 - [ ] New dependency documented with SPDX license in `pyproject.toml` and `docs/license_policy.md`
 - [ ] All four test types covered as appropriate
 - [ ] `python -m pytest tests/unit/ -q` exits 0
-- [ ] `ruff check`, `black --check`, `mypy` all exit 0
+- [ ] `ruff check`, `ruff format --check`, `mypy` all exit 0
+- [ ] `pre-commit run --all-files` exits 0
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] No hardcoded tokens, secrets, or absolute paths
 - [ ] No bundled model weights

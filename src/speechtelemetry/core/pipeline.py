@@ -11,10 +11,12 @@ Rules:
 from __future__ import annotations
 
 import logging
+import math
 import os
 import shutil
 import time
 import tracemalloc
+from pathlib import Path
 from typing import Any
 
 from speechtelemetry.config import PipelineConfig
@@ -32,6 +34,44 @@ from speechtelemetry.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _patch_speechbrain_lazy_modules() -> None:
+    """Make SpeechBrain 1.x LazyModule safe during CPython frame inspection.
+
+    SpeechBrain uses LazyModule objects in sys.modules for optional integrations
+    (k2_fsa, flair, encodec, …). CPython's inspect.getmodule() calls
+    hasattr(module, '__file__') on every sys.modules entry while building a
+    traceback. That triggers SpeechBrain's lazy import, which raises ImportError
+    if the optional package (k2, flair, etc.) is not installed — replacing the
+    real exception with an unrelated import error in our try/except blocks.
+
+    Fix: intercept __file__ and other pure-metadata attributes on LazyModule and
+    return None instead of raising, leaving all other attribute access unchanged.
+    """
+    try:
+        from speechbrain.utils.importutils import LazyModule  # noqa: PLC0415
+
+        _orig = LazyModule.__getattr__
+        _METADATA_ATTRS = frozenset(
+            ("__file__", "__spec__", "__loader__", "__package__", "__path__", "__name__")
+        )
+
+        def _safe_getattr(self: LazyModule, attr: str) -> object:
+            if attr in _METADATA_ATTRS:
+                try:
+                    return _orig(self, attr)
+                except Exception:
+                    return None
+            return _orig(self, attr)
+
+        LazyModule.__getattr__ = _safe_getattr
+        logger.debug("SpeechBrain LazyModule patched for safe frame inspection")
+    except Exception:
+        pass
+
+
+_patch_speechbrain_lazy_modules()
 
 
 # ── Pre-flight check ──────────────────────────────────────────────────────────
@@ -109,6 +149,7 @@ def run_pipeline(
     input_path: str,
     config: PipelineConfig,
     skip_decode: bool = False,
+    output_dir: str | Path | None = None,
 ) -> TranscriptDocument:
     """Run the full pipeline and return a TranscriptDocument.
 
@@ -116,6 +157,8 @@ def run_pipeline(
         input_path: Path to media file (any format) or pre-decoded WAV.
         config: Pipeline configuration.
         skip_decode: If True, treat input_path as a ready mono 16 kHz WAV.
+        output_dir: Directory to write all configured export_formats. If None,
+            exports are skipped (caller handles export via the returned doc).
 
     Returns:
         TranscriptDocument with all requested stages populated.
@@ -128,31 +171,69 @@ def run_pipeline(
     provenance = PipelineProvenance()
     tracemalloc.start()
 
+    logger.debug(
+        "Pipeline start: input=%s skip_decode=%s device=%s asr=%s/%s vad=%s align=%s emotion=%s",
+        input_path,
+        skip_decode,
+        config.device,
+        config.asr_backend,
+        config.asr_model_size,
+        config.vad_backend,
+        config.alignment_backend,
+        config.emotion_backend,
+    )
+
     with Job(input_path) as job:
+        if output_dir is not None:
+            job.output_dir = str(output_dir)
         audio_start = time.perf_counter()
 
         # ── Stage 1+2: Decode + Normalize ─────────────────────────────────
         if skip_decode:
             wav_path = input_path
-            logger.debug("Skipping decode stage (skip_decode=True)")
+            logger.debug("[decode] Skipped (skip_decode=True) — using %s directly", input_path)
         else:
+            logger.debug("[decode] Starting FFmpeg decode: %s", input_path)
             t0 = time.perf_counter()
             wav_path = job.decode(input_path, config)
-            report.stage_timings["decode"] = time.perf_counter() - t0
+            elapsed = time.perf_counter() - t0
+            report.stage_timings["decode"] = elapsed
+            logger.debug("[decode] Done in %.3fs → %s", elapsed, wav_path)
 
         audio_duration_s = _get_duration(wav_path)
+        logger.debug("[decode] Audio duration: %.3fs", audio_duration_s)
 
         # ── Stage 3: VAD ──────────────────────────────────────────────────
         speech_intervals: list[dict[str, Any]] = []
         silence_spans: list[SilenceSpan] = []
         try:
+            logger.debug(
+                "[vad] Starting %s (threshold=%.2f, min_silence=%dms, min_speech=%dms)",
+                config.vad_backend,
+                config.vad_threshold,
+                config.vad_min_silence_ms,
+                config.vad_min_speech_ms,
+            )
             t0 = time.perf_counter()
-            vad = get_backend("vad", config.vad_backend)
+            vad = get_backend(
+                "vad",
+                config.vad_backend,
+                threshold=config.vad_threshold,
+                min_silence_duration_ms=config.vad_min_silence_ms,
+                min_speech_duration_ms=config.vad_min_speech_ms,
+            )
             speech_intervals = vad.get_speech_intervals(wav_path)
             silence_spans = _compute_silence_spans(speech_intervals, audio_duration_s)
-            report.stage_timings["vad"] = time.perf_counter() - t0
+            elapsed = time.perf_counter() - t0
+            report.stage_timings["vad"] = elapsed
             provenance.record("vad", config.vad_backend)
             logger.info("VAD: %d speech intervals found", len(speech_intervals))
+            logger.debug(
+                "[vad] Done in %.3fs → %d intervals, %d silence spans",
+                elapsed,
+                len(speech_intervals),
+                len(silence_spans),
+            )
         except Exception as exc:
             report.add_error("vad", exc)
             logger.warning("VAD failed, using full audio: %s", exc)
@@ -162,8 +243,22 @@ def run_pipeline(
         raw_segments: list[dict[str, Any]] = []
         detected_language: str | None = None
         try:
+            logger.debug(
+                "[asr] Starting %s (model=%s, lang=%s, beam=%d, chunk=%s)",
+                config.asr_backend,
+                config.asr_model_size,
+                config.asr_language or "auto-detect",
+                config.asr_beam_size,
+                f"{config.max_chunk_duration_s}s" if config.chunk_audio else "disabled",
+            )
             t0 = time.perf_counter()
-            asr = get_backend("asr", config.asr_backend)
+            asr = get_backend(
+                "asr",
+                config.asr_backend,
+                model_size=config.asr_model_size,
+                device=config.device,
+                compute_type=config.asr_compute_type,
+            )
             asr_kwargs: dict[str, Any] = {
                 "language": config.asr_language,
                 "beam_size": config.asr_beam_size,
@@ -172,12 +267,20 @@ def run_pipeline(
                 asr_kwargs["chunk_size_s"] = config.max_chunk_duration_s
             raw_segments, info = asr.transcribe(wav_path, **asr_kwargs)
             detected_language = getattr(info, "language", None) or config.asr_language
-            report.stage_timings["asr"] = time.perf_counter() - t0
+            elapsed = time.perf_counter() - t0
+            report.stage_timings["asr"] = elapsed
             provenance.record(
                 "asr", config.asr_backend, model_id=config.asr_model_size, device=config.device
             )
             logger.info(
                 "ASR: %d segments transcribed (lang=%s)", len(raw_segments), detected_language
+            )
+            logger.debug(
+                "[asr] Done in %.3fs → %d segments (lang=%s, RTF=%.2f)",
+                elapsed,
+                len(raw_segments),
+                detected_language,
+                elapsed / audio_duration_s if audio_duration_s > 0 else 0.0,
             )
         except Exception as exc:
             report.add_error("asr", exc)
@@ -187,12 +290,26 @@ def run_pipeline(
         # ── Stage 5: Alignment ────────────────────────────────────────────
         if raw_segments and detected_language:
             try:
+                logger.debug(
+                    "[alignment] Starting %s (%d segments, lang=%s)",
+                    config.alignment_backend,
+                    len(raw_segments),
+                    detected_language,
+                )
                 t0 = time.perf_counter()
-                aligner = get_backend("alignment", config.alignment_backend)
+                aligner = get_backend("alignment", config.alignment_backend, device=config.device)
                 raw_segments = aligner.align(raw_segments, wav_path, detected_language)
-                report.stage_timings["alignment"] = time.perf_counter() - t0
+                elapsed = time.perf_counter() - t0
+                report.stage_timings["alignment"] = elapsed
                 provenance.record("alignment", config.alignment_backend)
+                total_words = sum(len(s.get("words") or []) for s in raw_segments)
                 logger.info("Alignment: word timestamps added to %d segments", len(raw_segments))
+                logger.debug(
+                    "[alignment] Done in %.3fs → %d segments, %d total words",
+                    elapsed,
+                    len(raw_segments),
+                    total_words,
+                )
             except Exception as exc:
                 report.add_error("alignment", exc)
                 logger.warning("Alignment failed, keeping segment-level timestamps: %s", exc)
@@ -201,20 +318,28 @@ def run_pipeline(
         diarize_output: list[dict[str, Any]] = []
         if config.diarization_backend:
             try:
+                logger.debug("[diarization] Starting %s", config.diarization_backend)
                 t0 = time.perf_counter()
-                diarizer = get_backend("diarization", config.diarization_backend)
+                diarizer = get_backend(
+                    "diarization", config.diarization_backend, device=config.device
+                )
                 diarize_output = diarizer.diarize(
                     wav_path,
                     min_speakers=config.diarization_min_speakers,
                     max_speakers=config.diarization_max_speakers,
                 )
-                report.stage_timings["diarization"] = time.perf_counter() - t0
+                elapsed = time.perf_counter() - t0
+                report.stage_timings["diarization"] = elapsed
                 logger.info("Diarization: %d speaker turns detected", len(diarize_output))
+                logger.debug(
+                    "[diarization] Done in %.3fs → %d speaker turns", elapsed, len(diarize_output)
+                )
             except Exception as exc:
                 report.add_error("diarization", exc)
                 logger.warning("Diarization failed, returning no speaker labels: %s", exc)
 
         # ── Build Segment objects ─────────────────────────────────────────
+        logger.debug("[pipeline] Building %d typed Segment objects", len(raw_segments))
         segments = _build_segments(raw_segments, diarize_output)
         segments = _attach_silence_gaps(segments, silence_spans)
 
@@ -240,6 +365,14 @@ def run_pipeline(
         except ImportError:
             pass
 
+        logger.debug(
+            "[pipeline] Complete: RTF=%.3f, RAM=%.0fMB, VRAM=%.0fMB, errors=%d",
+            report.real_time_factor,
+            report.peak_ram_mb,
+            report.peak_vram_mb,
+            len(report.errors),
+        )
+
         doc = TranscriptDocument(
             source_path=input_path,
             language=detected_language,
@@ -254,6 +387,7 @@ def run_pipeline(
         if job.output_dir:
             for fmt in config.export_formats:
                 try:
+                    logger.debug("[export] Writing %s → %s", fmt, job.output_path(fmt))
                     exporter = get_backend("exporter", fmt)
                     out_path = job.output_path(fmt)
                     exporter.export(doc, out_path)
@@ -310,6 +444,24 @@ def _compute_silence_spans(
     return spans
 
 
+def _segment_confidence(raw: dict[str, Any]) -> float:
+    """Derive a [0.0, 1.0] confidence for a segment dict.
+
+    Priority:
+      1. 'confidence' key (already in [0,1]) — e.g. from custom backends
+      2. 'avg_logprob' (ASR log-probability) — converted via exp()
+      3. Mean word alignment score — present after WhisperX alignment
+      4. 0.0 fallback
+    """
+    if (v := raw.get("confidence")) is not None:
+        return float(max(0.0, min(1.0, v)))
+    if (lp := raw.get("avg_logprob")) is not None:
+        return float(max(0.0, min(1.0, math.exp(lp))))
+    word_dicts = raw.get("words") or []
+    scores = [float(w["score"]) for w in word_dicts if "score" in w]
+    return sum(scores) / len(scores) if scores else 0.0
+
+
 def _build_segments(
     raw_segments: list[dict[str, Any]],
     diarize_output: list[dict[str, Any]],
@@ -329,7 +481,6 @@ def _build_segments(
                 for w in raw["words"]
             ]
 
-        # Assign speaker from diarization output using midpoint overlap
         speaker: str | None = None
         if diarize_output:
             seg_mid = (raw.get("start", 0.0) + raw.get("end", 0.0)) / 2
@@ -343,7 +494,7 @@ def _build_segments(
                 start=float(raw.get("start", 0.0)),
                 end=float(raw.get("end", 0.0)),
                 text=str(raw.get("text", "")).strip(),
-                confidence=float(raw.get("confidence", raw.get("avg_logprob", 0.0))),
+                confidence=_segment_confidence(raw),
                 speaker=speaker,
                 words=words,
             )
@@ -377,6 +528,7 @@ def _attach_prosody(
 
     for pb_name in config.prosody_backend:
         t0 = time.perf_counter()
+        logger.debug("[prosody] Starting %s for %d segments", pb_name, len(segments))
         try:
             prosody_backend = get_backend("prosody", pb_name)
         except Exception as exc:
@@ -388,6 +540,9 @@ def _attach_prosody(
         for i, seg in enumerate(segments):
             duration = seg.end - seg.start
             if duration < 0.04:  # parselmouth minimum
+                logger.debug(
+                    "[prosody:%s] Segment %d skipped: %.3fs < 40ms minimum", pb_name, i, duration
+                )
                 if report:
                     report.add_error(
                         "prosody",
@@ -407,13 +562,24 @@ def _attach_prosody(
                     shimmer=prosody_dict.get("shimmer"),
                     backend_name=pb_name,
                 )
+                logger.debug(
+                    "[prosody:%s] Segment %d [%.2f-%.2f]: f0=%.1fHz energy=%.1fdB",
+                    pb_name,
+                    i,
+                    seg.start,
+                    seg.end,
+                    seg.prosody.f0_mean,
+                    seg.prosody.energy_mean,
+                )
             except Exception as exc:
                 if report:
                     report.add_error("prosody", exc, segment_index=i)
-                logger.debug("Prosody failed for segment %d: %s", i, exc)
+                logger.debug("[prosody:%s] Segment %d failed: %s", pb_name, i, exc)
 
+        elapsed = time.perf_counter() - t0
         if report:
-            report.stage_timings[f"prosody:{pb_name}"] = time.perf_counter() - t0
+            report.stage_timings[f"prosody:{pb_name}"] = elapsed
+        logger.debug("[prosody:%s] Done in %.3fs", pb_name, elapsed)
 
     return segments
 
@@ -428,19 +594,27 @@ def _attach_emotion(
     if not config.emotion_backend:
         return segments
 
+    logger.debug("[emotion] Starting %s for %d segments", config.emotion_backend, len(segments))
     t0 = time.perf_counter()
     try:
-        emotion_backend = get_backend("emotion", config.emotion_backend)
+        emotion_backend = get_backend("emotion", config.emotion_backend, device=config.device)
     except Exception as exc:
         if report:
             report.add_error("emotion", exc)
-        logger.error("Emotion backend unavailable: %s", exc)
+        logger.error("[emotion] Backend unavailable: %s", exc)
         return segments
 
+    scored = 0
     for i, seg in enumerate(segments):
         duration = seg.end - seg.start
         if duration < 0.5:  # SpeechBrain minimum reliable duration
-            logger.debug("Skipping emotion for segment %d (too short: %.3fs)", i, duration)
+            logger.debug(
+                "[emotion] Segment %d [%.2f-%.2f] skipped: %.3fs < 500ms minimum",
+                i,
+                seg.start,
+                seg.end,
+                duration,
+            )
             continue
         try:
             emotion_dict = emotion_backend.predict_segment(wav_path, seg.start, seg.end)
@@ -451,12 +625,23 @@ def _attach_emotion(
                 valence=emotion_dict.get("valence"),
                 arousal=emotion_dict.get("arousal"),
             )
+            scored += 1
+            logger.debug(
+                "[emotion] Segment %d [%.2f-%.2f]: %s (conf=%.3f)",
+                i,
+                seg.start,
+                seg.end,
+                seg.emotion.top_label,
+                seg.emotion.confidence,
+            )
         except Exception as exc:
             if report:
                 report.add_error("emotion", exc, segment_index=i)
-            logger.debug("Emotion failed for segment %d: %s", i, exc)
+            logger.debug("[emotion] Segment %d failed: %s", i, exc)
 
+    elapsed = time.perf_counter() - t0
     if report:
-        report.stage_timings["emotion"] = time.perf_counter() - t0
+        report.stage_timings["emotion"] = elapsed
+    logger.debug("[emotion] Done in %.3fs → %d/%d segments scored", elapsed, scored, len(segments))
 
     return segments

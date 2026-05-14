@@ -9,7 +9,9 @@ repos:
       - id: check-json
       - id: check-merge-conflict
       - id: check-added-large-files
-        args: ["--maxkb=1000"]  # Prevent accidental model weight commits
+        args: ["--maxkb=500"]  # Prevent accidental model weights or media commits
+      - id: detect-private-key
+      - id: check-ast  # Syntax-check all Python files before committing
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.7
@@ -18,12 +20,7 @@ repos:
         args: ["--fix"]
       - id: ruff-format
 
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-
-  # Custom hook: reject hardcoded HuggingFace tokens
+  # Custom hooks: reject hardcoded credentials
   - repo: local
     hooks:
       - id: no-hf-tokens
@@ -31,4 +28,18 @@ repos:
         language: pygrep
         entry: 'hf_[a-zA-Z0-9]{20,}'
         types: [python]
-        exclude: tests/fixtures/
+        exclude: ^tests/
+
+      - id: no-openai-keys
+        name: Reject hardcoded OpenAI API keys
+        language: pygrep
+        entry: 'sk-[a-zA-Z0-9]{32,}'
+        types: [python]
+        exclude: ^tests/
+
+      - id: no-hardcoded-env-secrets
+        name: Reject os.environ assignments to tokens/secrets in source
+        language: pygrep
+        entry: 'os\.environ\s*\[.*(TOKEN|SECRET|KEY|PASSWORD).*\]\s*='
+        types: [python]
+        exclude: ^tests/

@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dev deps (no ML extras)
+        run: pip install -e ".[cli]" ruff mypy pytest pytest-cov
+
+      - name: ruff check
+        run: ruff check src/ tests/
+
+      - name: ruff format check
+        run: ruff format --check src/ tests/
+
+      - name: mypy
+        run: mypy src/
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package + test deps
+        run: pip install -e ".[cli]" pytest pytest-cov
+
+      - name: Install FFmpeg
+        run: sudo apt-get install -y ffmpeg
+
+      - name: Run unit tests with coverage
+        run: |
+          python -m pytest tests/unit/ -q \
+            --cov=src/speechtelemetry \
+            --cov-report=term-missing \
+            --cov-fail-under=70
+
+  secrets:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect private keys
+        run: |
+          if grep -rn "hf_[a-zA-Z0-9]\{20,\}" src/ tests/ --include="*.py"; then
+            echo "HuggingFace token detected in source!" && exit 1
+          fi
+          if grep -rn "sk-[a-zA-Z0-9]\{32,\}" src/ tests/ --include="*.py"; then
+            echo "OpenAI key detected in source!" && exit 1
+          fi
+          echo "Secret scan passed."

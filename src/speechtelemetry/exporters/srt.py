@@ -25,8 +25,6 @@ def _format_srt_time(seconds: float) -> str:
 class SRTExporter(Exporter):
     """Export to SubRip (.srt) subtitle format. Lossy — text + timestamps only."""
 
-    DROPPED_FIELDS = ["speaker", "prosody", "emotion", "words", "confidence"]
-
     def export(self, doc: TranscriptDocument, output_path: str) -> None:
         lines = []
         for i, seg in enumerate(doc.segments, start=1):

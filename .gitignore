@@ -68,3 +68,12 @@ benchmarking/outputs/
 # Generated docs
 docs/_build/
 site/
+
+# Local test media (never commit — use tests/fixtures/ for checked-in fixtures)
+mock_data/
+
+# Pipeline output from E2E tests — generated, not sources
+mock_output/
+
+# Downloaded model weight checkpoints (wav2vec2, whisperx, etc.)
+wav2vec2_checkpoints/

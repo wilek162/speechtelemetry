@@ -36,7 +36,7 @@ class FasterWhisperBackend(ASRBackend):
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "faster-whisper is not installed.\n" "Run: pip install faster-whisper"
+                "faster-whisper is not installed.\nRun: pip install faster-whisper"
             )
 
         if device == "auto":
@@ -60,7 +60,7 @@ class FasterWhisperBackend(ASRBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "faster-whisper is not installed.\n" "Run: pip install faster-whisper"
+                "faster-whisper is not installed.\nRun: pip install faster-whisper"
             )
 
     def transcribe(
@@ -96,9 +96,11 @@ class FasterWhisperBackend(ASRBackend):
             for s in segments_gen
         ]
 
+        lang = getattr(info, "language", "?")
         logger.debug(
-            "faster-whisper: %d segments, lang=%s",
+            "FasterWhisper: %d segments, lang=%s, first 3: %s",
             len(segments),
-            getattr(info, "language", "?"),
+            lang,
+            [{"start": s["start"], "end": s["end"], "text": s["text"][:40]} for s in segments[:3]],
         )
         return segments, info

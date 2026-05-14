@@ -61,6 +61,33 @@ def test_build_segments_no_speaker_without_diarization():
     assert segments[0].speaker is None
 
 
+def test_build_segments_confidence_from_avg_logprob():
+    """avg_logprob (ASR log-prob) must be converted to [0,1] via exp()."""
+    import math
+
+    raw = [{"start": 0.0, "end": 1.0, "text": "hi", "avg_logprob": -0.3}]
+    segments = _build_segments(raw, [])
+    expected = math.exp(-0.3)
+    assert abs(segments[0].confidence - expected) < 1e-6
+
+
+def test_build_segments_confidence_from_word_scores_when_no_logprob():
+    """When avg_logprob is absent (post-alignment), mean word score is used."""
+    raw = [
+        {
+            "start": 0.0,
+            "end": 1.0,
+            "text": "hi there",
+            "words": [
+                {"word": "hi", "start": 0.0, "end": 0.4, "score": 0.8},
+                {"word": "there", "start": 0.4, "end": 1.0, "score": 0.9},
+            ],
+        }
+    ]
+    segments = _build_segments(raw, [])
+    assert abs(segments[0].confidence - 0.85) < 1e-6
+
+
 # ── _compute_silence_spans ────────────────────────────────────────────────────
 
 
@@ -223,3 +250,139 @@ def test_asr_transcribe_receives_chunk_size_when_chunk_audio_true():
     assert (
         "chunk_size_s" in kwargs
     ), f"chunk_size_s not passed to ASR transcribe(). Got kwargs: {list(kwargs.keys())}"
+
+
+# ── Config kwargs wired to backend constructors ───────────────────────────────
+
+
+def _run_pipeline_capturing_get_backend_calls(config: PipelineConfig) -> list:
+    """Helper: run pipeline with skip_decode, capture all get_backend(stage, name, **kwargs) calls."""
+    from speechtelemetry.core.pipeline import run_pipeline
+
+    calls: list[tuple[str, str, dict]] = []
+
+    def capturing_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        calls.append((stage, name, dict(kwargs)))
+        m = MagicMock()
+        _seg = [
+            {"start": 0.0, "end": 1.0, "text": "hi", "avg_logprob": -0.5, "no_speech_prob": 0.1}
+        ]
+        m.get_speech_intervals.return_value = [{"start": 0.0, "end": 3.0}]
+        m.transcribe.return_value = (_seg, type("Info", (), {"language": "en"})())
+        m.align.return_value = _seg
+        return m
+
+    with (
+        patch("speechtelemetry.core.pipeline.preflight_check"),
+        patch("speechtelemetry.core.pipeline.get_backend", side_effect=capturing_get_backend),
+        patch("speechtelemetry.core.pipeline._get_duration", return_value=3.0),
+    ):
+        run_pipeline("fake.wav", config, skip_decode=True)
+
+    return calls
+
+
+def test_pipeline_passes_model_size_and_device_to_asr_backend():
+    """Pipeline must pass asr_model_size, device, and compute_type to the ASR backend constructor."""
+    config = PipelineConfig(
+        asr_backend="faster-whisper",
+        asr_model_size="small",
+        device="cpu",
+        asr_compute_type="int8",
+        vad_backend="silero",
+        alignment_backend="whisperx",
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+    )
+    calls = _run_pipeline_capturing_get_backend_calls(config)
+    asr_calls = [(s, n, kw) for s, n, kw in calls if s == "asr"]
+    assert asr_calls, "get_backend was never called for stage 'asr'"
+    _, _, kwargs = asr_calls[0]
+    assert kwargs.get("model_size") == "small", f"model_size not passed. Got: {kwargs}"
+    assert kwargs.get("device") == "cpu", f"device not passed. Got: {kwargs}"
+    assert kwargs.get("compute_type") == "int8", f"compute_type not passed. Got: {kwargs}"
+
+
+def test_pipeline_passes_threshold_to_vad_backend():
+    """Pipeline must pass vad_threshold, vad_min_silence_ms, vad_min_speech_ms to the VAD backend."""
+    config = PipelineConfig(
+        vad_backend="silero",
+        vad_threshold=0.7,
+        vad_min_silence_ms=500,
+        vad_min_speech_ms=150,
+        asr_backend="faster-whisper",
+        alignment_backend="whisperx",
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+    )
+    calls = _run_pipeline_capturing_get_backend_calls(config)
+    vad_calls = [(s, n, kw) for s, n, kw in calls if s == "vad"]
+    assert vad_calls, "get_backend was never called for stage 'vad'"
+    _, _, kwargs = vad_calls[0]
+    assert kwargs.get("threshold") == 0.7, f"threshold not passed. Got: {kwargs}"
+    assert (
+        kwargs.get("min_silence_duration_ms") == 500
+    ), f"min_silence_duration_ms not passed. Got: {kwargs}"
+    assert (
+        kwargs.get("min_speech_duration_ms") == 150
+    ), f"min_speech_duration_ms not passed. Got: {kwargs}"
+
+
+def test_pipeline_passes_device_to_alignment_backend():
+    """Pipeline must pass device to the alignment backend constructor."""
+    config = PipelineConfig(
+        device="cpu",
+        alignment_backend="whisperx",
+        asr_backend="faster-whisper",
+        vad_backend="silero",
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+    )
+    calls = _run_pipeline_capturing_get_backend_calls(config)
+    align_calls = [(s, n, kw) for s, n, kw in calls if s == "alignment"]
+    assert align_calls, "get_backend was never called for stage 'alignment'"
+    _, _, kwargs = align_calls[0]
+    assert kwargs.get("device") == "cpu", f"device not passed to alignment. Got: {kwargs}"
+
+
+def test_pipeline_passes_device_to_emotion_backend():
+    """Pipeline must pass device to the emotion backend constructor."""
+    from speechtelemetry.core.pipeline import _attach_emotion
+
+    config = PipelineConfig(
+        device="cpu",
+        emotion_backend="speechbrain",
+        asr_backend="faster-whisper",
+        vad_backend="silero",
+        alignment_backend="whisperx",
+        prosody_backend=[],
+        diarization_backend=None,
+    )
+
+    captured_kwargs: dict = {}
+
+    def capturing_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        captured_kwargs.update(kwargs)
+        m = MagicMock()
+        m.predict_segment.return_value = {
+            "label_distribution": {"neutral": 1.0},
+            "confidence": 0.9,
+            "backend_name": "test",
+        }
+        return m
+
+    with patch("speechtelemetry.core.pipeline.get_backend", side_effect=capturing_get_backend):
+        from speechtelemetry.types import Segment
+
+        _attach_emotion(
+            [Segment(start=0.0, end=2.0, text="hi", confidence=0.9)],
+            "fake.wav",
+            config,
+        )
+
+    assert (
+        captured_kwargs.get("device") == "cpu"
+    ), f"device not passed to emotion backend. Got: {captured_kwargs}"

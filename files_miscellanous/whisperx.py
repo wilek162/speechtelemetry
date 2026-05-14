@@ -3,11 +3,12 @@
 License: BSD-4-Clause
 Provides word-level timestamps via wav2vec2 forced alignment.
 """
+
 from __future__ import annotations
 
 import gc
 import logging
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from speechtelemetry.exceptions import BackendNotAvailableError
 from speechtelemetry.interfaces import AlignmentBackend
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import whisperx
+
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
@@ -29,28 +31,23 @@ class WhisperXAlignmentBackend(AlignmentBackend):
 
     def __init__(self, device: str = "auto") -> None:
         if not _AVAILABLE:
-            raise BackendNotAvailableError(
-                "whisperx is not installed.\n"
-                "Run: pip install whisperx"
-            )
+            raise BackendNotAvailableError("whisperx is not installed.\nRun: pip install whisperx")
         if device == "auto":
             try:
                 import torch  # noqa: PLC0415
+
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             except ImportError:
                 device = "cpu"
         self.device = device
-        self._align_model: Optional[object] = None
-        self._metadata: Optional[object] = None
-        self._loaded_lang: Optional[str] = None
+        self._align_model: object | None = None
+        self._metadata: object | None = None
+        self._loaded_lang: str | None = None
 
     @classmethod
     def _check_available(cls) -> None:
         if not _AVAILABLE:
-            raise BackendNotAvailableError(
-                "whisperx is not installed.\n"
-                "Run: pip install whisperx"
-            )
+            raise BackendNotAvailableError("whisperx is not installed.\nRun: pip install whisperx")
 
     def align(
         self,
@@ -70,6 +67,7 @@ class WhisperXAlignmentBackend(AlignmentBackend):
                 gc.collect()
                 try:
                     import torch  # noqa: PLC0415
+
                     if self.device == "cuda":
                         torch.cuda.empty_cache()
                 except ImportError:

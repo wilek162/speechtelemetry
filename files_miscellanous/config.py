@@ -6,9 +6,10 @@ Rules:
   - No business logic here. Validation only.
   - Immutable after instantiation (frozen=True).
 """
+
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -37,11 +38,11 @@ class PipelineConfig(BaseModel):
         default="large-v3",
         description="Model size for the ASR backend.",
     )
-    asr_compute_type: Optional[str] = Field(
+    asr_compute_type: str | None = Field(
         default=None,
         description="Quantization type. None = auto (float16 on GPU, int8 on CPU).",
     )
-    asr_language: Optional[str] = Field(
+    asr_language: str | None = Field(
         default=None,
         description="ISO 639-1 language code. None = auto-detect.",
     )
@@ -63,15 +64,15 @@ class PipelineConfig(BaseModel):
     )
 
     # ── Diarization ───────────────────────────────────────────────────────────
-    diarization_backend: Optional[Literal["pyannote", "funasr"]] = Field(
+    diarization_backend: Literal["pyannote", "funasr"] | None = Field(
         default=None,
         description=(
             "Speaker diarization backend. None disables diarization. "
             "pyannote requires HF_TOKEN and model license acceptance."
         ),
     )
-    diarization_min_speakers: Optional[int] = Field(default=None, ge=1)
-    diarization_max_speakers: Optional[int] = Field(default=None, ge=1)
+    diarization_min_speakers: int | None = Field(default=None, ge=1)
+    diarization_max_speakers: int | None = Field(default=None, ge=1)
 
     # ── Prosody ───────────────────────────────────────────────────────────────
     prosody_backend: list[Literal["parselmouth", "copasul", "librosa", "audioflux"]] = Field(
@@ -83,7 +84,7 @@ class PipelineConfig(BaseModel):
     )
 
     # ── Emotion ───────────────────────────────────────────────────────────────
-    emotion_backend: Optional[Literal["speechbrain", "emotion2vec", "emobox"]] = Field(
+    emotion_backend: Literal["speechbrain", "emotion2vec", "emobox"] | None = Field(
         default="speechbrain",
         description="Emotion recognition backend. Apache 2.0 licensed.",
     )

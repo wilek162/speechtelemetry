@@ -38,7 +38,7 @@ class SileroVADBackend(VADBackend):
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "silero-vad is not installed.\n" "Run: pip install silero-vad"
+                "silero-vad is not installed.\nRun: pip install silero-vad"
             )
         torch.set_num_threads(1)  # important for deterministic CPU results
         self.model = load_silero_vad()
@@ -51,12 +51,20 @@ class SileroVADBackend(VADBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "silero-vad is not installed.\n" "Run: pip install silero-vad"
+                "silero-vad is not installed.\nRun: pip install silero-vad"
             )
 
     def get_speech_intervals(self, wav_path: str) -> list[dict[str, float]]:
         """Detect speech regions. Returns [{"start": float, "end": float}] in seconds."""
+        logger.debug(
+            "SileroVAD: reading %s (threshold=%.2f, min_silence=%dms, min_speech=%dms)",
+            wav_path,
+            self.threshold,
+            self.min_silence_duration_ms,
+            self.min_speech_duration_ms,
+        )
         wav = read_audio(wav_path)  # returns torch.Tensor, expects mono 16 kHz
+        logger.debug("SileroVAD: audio tensor shape=%s, samples=%d", tuple(wav.shape), wav.numel())
         timestamps = get_speech_timestamps(
             wav,
             self.model,
@@ -66,5 +74,9 @@ class SileroVADBackend(VADBackend):
             min_speech_duration_ms=self.min_speech_duration_ms,
             speech_pad_ms=self.speech_pad_ms,
         )
-        logger.debug("Silero VAD: %d speech intervals detected", len(timestamps))
+        logger.debug(
+            "SileroVAD: %d speech intervals detected: %s",
+            len(timestamps),
+            timestamps[:3] if timestamps else [],
+        )
         return timestamps  # type: ignore[no-any-return]

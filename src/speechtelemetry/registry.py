@@ -74,6 +74,9 @@ _LICENSE_FLAGS: dict[str, str] = {
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
+_CLASS_CACHE: dict[str, type[Any]] = {}
+
+
 def register(stage: str, name: str, cls: type[Any]) -> None:
     """Register a backend class for a given stage and name.
 
@@ -97,9 +100,6 @@ def register(stage: str, name: str, cls: type[Any]) -> None:
     _REGISTRY[stage][name] = f"{cls.__module__}.{cls.__qualname__}"
     # Also store the class directly to avoid re-import
     _CLASS_CACHE[f"{stage}:{name}"] = cls
-
-
-_CLASS_CACHE: dict[str, type[Any]] = {}
 
 
 def resolve_backend(stage: str, name: str) -> type[Any]:

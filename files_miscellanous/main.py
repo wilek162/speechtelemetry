@@ -2,16 +2,17 @@
 
 Zero business logic here. Parse args, build config, call enrich_media().
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 try:
     import typer
     from rich.console import Console
     from rich.table import Table
+
     _CLI_AVAILABLE = True
 except ImportError:
     _CLI_AVAILABLE = False
@@ -28,13 +29,19 @@ if _CLI_AVAILABLE:
     @app.command()
     def transcribe(
         input_file: Path = typer.Argument(..., help="Audio or video file to process."),
-        output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output path (default: same dir as input)."),
+        output: Path | None = typer.Option(
+            None, "--output", "-o", help="Output path (default: same dir as input)."
+        ),
         device: str = typer.Option("auto", "--device", "-d", help="auto | cpu | cuda"),
         asr_backend: str = typer.Option("faster-whisper", "--asr"),
         asr_model: str = typer.Option("large-v3", "--model"),
-        language: Optional[str] = typer.Option(None, "--lang", "-l"),
-        diarize: bool = typer.Option(False, "--diarize", help="Enable speaker diarization (requires HF_TOKEN)."),
-        formats: str = typer.Option("json", "--formats", "-f", help="Comma-separated: json,srt,vtt,textgrid"),
+        language: str | None = typer.Option(None, "--lang", "-l"),
+        diarize: bool = typer.Option(
+            False, "--diarize", help="Enable speaker diarization (requires HF_TOKEN)."
+        ),
+        formats: str = typer.Option(
+            "json", "--formats", "-f", help="Comma-separated: json,srt,vtt,textgrid"
+        ),
         no_prosody: bool = typer.Option(False, "--no-prosody"),
         no_emotion: bool = typer.Option(False, "--no-emotion"),
     ) -> None:
@@ -59,7 +66,9 @@ if _CLI_AVAILABLE:
             export_formats=export_formats,
         )
 
-        console.print(f"[bold green]speechtelemetry[/bold green] processing: [cyan]{input_file}[/cyan]")
+        console.print(
+            f"[bold green]speechtelemetry[/bold green] processing: [cyan]{input_file}[/cyan]"
+        )
 
         try:
             doc = enrich_media(str(input_file), config=config, output_path=output)
@@ -91,14 +100,17 @@ if _CLI_AVAILABLE:
     @app.command()
     def info() -> None:
         """Show available backends and environment status."""
-        from speechtelemetry import registry
         import shutil
+
+        from speechtelemetry import registry
 
         console.print("[bold]speechtelemetry — environment info[/bold]\n")
 
         # FFmpeg
         ffmpeg = shutil.which("ffmpeg")
-        console.print(f"FFmpeg: {'[green]✓[/green] ' + ffmpeg if ffmpeg else '[red]✗ NOT FOUND[/red]'}")
+        console.print(
+            f"FFmpeg: {'[green]✓[/green] ' + ffmpeg if ffmpeg else '[red]✗ NOT FOUND[/red]'}"
+        )
 
         # Registered backends
         console.print("\n[bold]Registered backends:[/bold]")
@@ -109,18 +121,17 @@ if _CLI_AVAILABLE:
     def main() -> None:
         if not _CLI_AVAILABLE:
             print(
-                "CLI dependencies not installed.\n"
-                "Run: pip install speechtelemetry[cli]",
+                "CLI dependencies not installed.\nRun: pip install speechtelemetry[cli]",
                 file=sys.stderr,
             )
             sys.exit(1)
         app()
 
 else:
+
     def main() -> None:  # type: ignore[misc]
         print(
-            "CLI dependencies not installed.\n"
-            "Run: pip install speechtelemetry[cli]",
+            "CLI dependencies not installed.\nRun: pip install speechtelemetry[cli]",
             file=sys.stderr,
         )
         sys.exit(1)

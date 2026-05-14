@@ -52,12 +52,11 @@ dev     = [
     "pytest-cov>=5",
     "mypy>=1.8",
     "ruff>=0.4",
-    "black>=24",
     "pre-commit>=3",
 ]
 
 [project.scripts]
-speechtelemetry = "speechtelemetry.cli.main:app"
+speechtelemetry = "speechtelemetry.cli.main:main"
 
 # Entry point group for third-party backend auto-discovery
 [project.entry-points."speechtelemetry.backends"]
@@ -78,15 +77,11 @@ packages = ["src/speechtelemetry"]
 line-length = 100
 target-version = "py310"
 src = ["src"]
+exclude = ["files_miscellanous"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]  # line length handled by formatter
-
-# ── Black (formatter) ──────────────────────────────────────────────────────────
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311"]
 
 # ── Mypy (type checker) ────────────────────────────────────────────────────────
 [tool.mypy]
@@ -117,6 +112,8 @@ markers = [
     "hf_token: marks tests that require HF_TOKEN env var",
     "slow: marks slow integration/e2e tests",
 ]
+log_level = "DEBUG"
+log_cli_level = "WARNING"
 
 # ── Coverage ───────────────────────────────────────────────────────────────────
 [tool.coverage.run]

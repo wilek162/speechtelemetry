@@ -31,9 +31,7 @@ class WhisperXAlignmentBackend(AlignmentBackend):
 
     def __init__(self, device: str = "auto") -> None:
         if not _AVAILABLE:
-            raise BackendNotAvailableError(
-                "whisperx is not installed.\n" "Run: pip install whisperx"
-            )
+            raise BackendNotAvailableError("whisperx is not installed.\nRun: pip install whisperx")
         if device == "auto":
             try:
                 import torch  # noqa: PLC0415
@@ -49,9 +47,7 @@ class WhisperXAlignmentBackend(AlignmentBackend):
     @classmethod
     def _check_available(cls) -> None:
         if not _AVAILABLE:
-            raise BackendNotAvailableError(
-                "whisperx is not installed.\n" "Run: pip install whisperx"
-            )
+            raise BackendNotAvailableError("whisperx is not installed.\nRun: pip install whisperx")
 
     def align(
         self,
@@ -85,6 +81,12 @@ class WhisperXAlignmentBackend(AlignmentBackend):
             self._loaded_lang = language
 
         audio = whisperx.load_audio(audio_path)
+        logger.debug(
+            "WhisperX: aligning %d segments for language '%s' on %s",
+            len(segments),
+            language,
+            self.device,
+        )
         result = whisperx.align(
             segments,
             self._align_model,
@@ -93,4 +95,11 @@ class WhisperXAlignmentBackend(AlignmentBackend):
             self.device,
             return_char_alignments=False,
         )
-        return result["segments"]  # type: ignore[no-any-return]
+        aligned = result["segments"]
+        total_words = sum(len(s.get("words") or []) for s in aligned)
+        logger.debug(
+            "WhisperX: alignment done — %d segments, %d total word timestamps",
+            len(aligned),
+            total_words,
+        )
+        return aligned  # type: ignore[no-any-return]

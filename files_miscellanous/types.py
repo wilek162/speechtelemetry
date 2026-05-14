@@ -8,11 +8,11 @@ Rules enforced here:
   - Missing values use Optional[T] = None, never sentinel strings.
   - ProcessingReport.errors is always a list (never None).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
-
+from typing import Literal
 
 # ── Word ──────────────────────────────────────────────────────────────────────
 
@@ -25,8 +25,8 @@ class Word:
     start: float  # seconds
     end: float  # seconds
     confidence: float  # [0.0, 1.0]
-    token_id: Optional[int] = None
-    alignment_backend: Optional[str] = None  # e.g. "whisperx", "none" on failure
+    token_id: int | None = None
+    alignment_backend: str | None = None  # e.g. "whisperx", "none" on failure
 
 
 # ── ProsodyWindow ─────────────────────────────────────────────────────────────
@@ -40,12 +40,12 @@ class ProsodyWindow:
     f0_variance: float  # Hz²
     energy_mean: float  # dB
     energy_variance: float  # dB²
-    speech_rate_sps: Optional[float] = None  # syllables per second
-    pause_density: Optional[float] = None  # ratio of pause time to total time
-    voice_quality_hnr: Optional[float] = None  # harmonics-to-noise ratio (dB)
-    jitter: Optional[float] = None  # local jitter ratio
-    shimmer: Optional[float] = None  # local shimmer ratio
-    backend_name: Optional[str] = None  # e.g. "parselmouth"
+    speech_rate_sps: float | None = None  # syllables per second
+    pause_density: float | None = None  # ratio of pause time to total time
+    voice_quality_hnr: float | None = None  # harmonics-to-noise ratio (dB)
+    jitter: float | None = None  # local jitter ratio
+    shimmer: float | None = None  # local shimmer ratio
+    backend_name: str | None = None  # e.g. "parselmouth"
 
 
 # ── EmotionScore ──────────────────────────────────────────────────────────────
@@ -62,8 +62,8 @@ class EmotionScore:
     label_distribution: dict[str, float]  # e.g. {"happy": 0.7, "neutral": 0.3}
     confidence: float  # [0.0, 1.0]
     backend_name: str  # e.g. "speechbrain/emotion-recognition-wav2vec2-IEMOCAP"
-    valence: Optional[float] = None  # [-1.0, 1.0] if supported
-    arousal: Optional[float] = None  # [-1.0, 1.0] if supported
+    valence: float | None = None  # [-1.0, 1.0] if supported
+    arousal: float | None = None  # [-1.0, 1.0] if supported
 
     @property
     def top_label(self) -> str:
@@ -97,12 +97,12 @@ class Segment:
     end: float  # seconds
     text: str
     confidence: float  # [0.0, 1.0]; ASR-level confidence
-    speaker: Optional[str] = None  # e.g. "SPEAKER_00"; None if diarization disabled
-    silence_before_ms: Optional[float] = None
-    silence_after_ms: Optional[float] = None
-    words: Optional[list[Word]] = None
-    prosody: Optional[ProsodyWindow] = None
-    emotion: Optional[EmotionScore] = None
+    speaker: str | None = None  # e.g. "SPEAKER_00"; None if diarization disabled
+    silence_before_ms: float | None = None
+    silence_after_ms: float | None = None
+    words: list[Word] | None = None
+    prosody: ProsodyWindow | None = None
+    emotion: EmotionScore | None = None
 
 
 # ── StageError ────────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ class StageError:
     stage: str  # e.g. "prosody", "emotion", "alignment"
     message: str
     exception_type: str  # e.g. "RuntimeError"
-    segment_index: Optional[int] = None  # None = stage-level failure
+    segment_index: int | None = None  # None = stage-level failure
 
 
 # ── ProcessingReport ──────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ class ProcessingReport:
         self,
         stage: str,
         exc: Exception,
-        segment_index: Optional[int] = None,
+        segment_index: int | None = None,
     ) -> None:
         """Convenience method to append a StageError."""
         self.errors.append(
@@ -164,7 +164,7 @@ class TranscriptDocument:
     """
 
     source_path: str
-    language: Optional[str]  # ISO 639-1 code; None if not detected
+    language: str | None  # ISO 639-1 code; None if not detected
     duration_s: float
     segments: list[Segment]
     silence_spans: list[SilenceSpan]

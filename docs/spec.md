@@ -128,7 +128,7 @@ Rules enforced in `types.py`:
 
 | Setting | Default | Rationale |
 |---------|---------|-----------|
-| `device` | `"cpu"` | CPU works on every machine; `"cuda"` requires explicit opt-in and separate install |
+| `device` | `"auto"` | `"auto"` selects CUDA if available, else CPU. Resolution is delegated to the backend layer. Use `"cpu"` to force CPU; `"cuda"` to require GPU (fails if unavailable). |
 | `asr_backend` | `"faster-whisper"` | MIT licensed; best CPU/GPU throughput ratio |
 | `asr_model_size` | `"large-v3"` | Best accuracy; swap to `medium` or `small` for speed |
 | `asr_compute_type` | `None` | Auto: `float16` on GPU, `int8` on CPU |

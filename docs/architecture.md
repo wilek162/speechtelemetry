@@ -380,8 +380,8 @@ Key decisions recorded for future contributors. Read these before proposing stru
 **ADL-002: Lazy imports in the registry**
 Backend modules are not imported at `import speechtelemetry` time. They are imported only when `resolve_backend()` is called for the first time. This keeps import time fast even if heavy ML libraries (torch, faster-whisper) are installed.
 
-**ADL-003: No `device="auto"` in config**
-The `device` field accepts only `"cpu"` or `"cuda"`. There is no `"auto"` option. GPU is never assumed. This enforces the principle that GPU support is an explicit install path (CUDA-enabled torch + `speechtelemetry[cuda]`) and not a default assumption.
+**ADL-003: `device="auto"` delegates GPU resolution to the backend layer**
+`PipelineConfig.device` accepts `"auto"` (default), `"cpu"`, and `"cuda"`. With `"auto"`, each backend selects CUDA if `torch.cuda.is_available()`, otherwise falls back to CPU. With `"cpu"`, GPU is never used. With `"cuda"`, the pre-flight check fails hard if CUDA is unavailable. This design keeps `PipelineConfig` free of torch imports while still allowing transparent GPU acceleration when available.
 
 **ADL-004: `prosody_backend` defaults to `[]`**
 Prosody is opt-in because the most accessible backend (parselmouth) is GPL-3.0. An empty default ensures users with permissive-license requirements never accidentally pull in a GPL dependency. Users who want prosody must choose a backend explicitly.

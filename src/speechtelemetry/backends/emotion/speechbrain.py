@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import tempfile
 from typing import ClassVar
 
 from speechtelemetry.exceptions import BackendNotAvailableError
@@ -44,8 +43,7 @@ class SpeechBrainEmotionBackend(EmotionBackend):
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "speechbrain is not installed.\n"
-                "Run: pip install speechbrain transformers soundfile"
+                "speechbrain is not installed.\nRun: pip install speechbrain transformers soundfile"
             )
 
         if device == "auto":
@@ -73,8 +71,7 @@ class SpeechBrainEmotionBackend(EmotionBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "speechbrain is not installed.\n"
-                "Run: pip install speechbrain transformers soundfile"
+                "speechbrain is not installed.\nRun: pip install speechbrain transformers soundfile"
             )
 
     def predict_segment(
@@ -87,46 +84,44 @@ class SpeechBrainEmotionBackend(EmotionBackend):
 
         Returns a dict with full probability distribution — never a single label.
         """
-
         data, sr = sf.read(wav_path)
         start_sample = int(start_s * sr)
         end_sample = int(end_s * sr)
         segment = data[start_sample:end_sample]
 
         if segment.ndim > 1:
-            segment = segment.mean(axis=1)  # ensure mono
+            segment = segment.mean(axis=1)
 
-        # Write segment to temp file for classify_file()
-        seg_path = None
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-                seg_path = f.name
-            sf.write(seg_path, segment, sr)
+        # Use classify_batch() with a tensor directly — avoids the temp-file
+        # path that torchaudio's classify_file() fails to resolve on Windows.
+        # The pipeline guarantees wav_path is already mono 16 kHz PCM.
+        wavs = torch.tensor(segment, dtype=torch.float32).unsqueeze(0)
+        out_prob, score, index, text_lab = self.classifier.classify_batch(wavs)
 
-            out_prob, score, index, text_lab = self.classifier.classify_file(seg_path)
-        finally:
-            if seg_path and os.path.exists(seg_path):
-                os.unlink(seg_path)
-
-        # out_prob: tensor of shape (1, n_classes)
         probs = out_prob.squeeze(0).tolist()
-
-        # Get label names from the encoder
         n_classes = len(probs)
         labels = [
             self.classifier.hparams.label_encoder.decode_ndim(torch.tensor([i]))[0]
             for i in range(n_classes)
         ]
-
         label_distribution = dict(zip(labels, probs, strict=False))
+        top = (
+            text_lab[0] if text_lab else max(label_distribution, key=label_distribution.__getitem__)
+        )
+        conf = float(score.squeeze())
+
+        logger.debug(
+            "SpeechBrain: [%.2f-%.2f] top=%s (%.3f) dist=%s",
+            start_s,
+            end_s,
+            top,
+            conf,
+            {k: round(v, 3) for k, v in label_distribution.items()},
+        )
 
         return {
             "label_distribution": label_distribution,
-            "top_label": (
-                text_lab[0]
-                if text_lab
-                else max(label_distribution, key=label_distribution.__getitem__)
-            ),
-            "confidence": float(score.squeeze()),
+            "top_label": top,
+            "confidence": conf,
             "backend_name": self.MODEL_HF,
         }

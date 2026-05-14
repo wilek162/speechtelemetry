@@ -40,6 +40,8 @@ def normalize_to_wav(input_path: str, output_path: str) -> None:
     cmd = [
         "ffmpeg",
         "-y",  # overwrite output without prompting
+        "-loglevel",
+        "error",
         "-i",
         input_path,
         "-vn",  # strip all video streams
@@ -50,8 +52,6 @@ def normalize_to_wav(input_path: str, output_path: str) -> None:
         "-ar",
         str(_TARGET_SAMPLE_RATE),  # 16 kHz
         output_path,
-        "-loglevel",
-        "error",
     ]
 
     logger.debug("FFmpeg: %s", " ".join(cmd))
@@ -60,7 +60,7 @@ def normalize_to_wav(input_path: str, output_path: str) -> None:
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", errors="replace")
         raise RuntimeError(
-            f"FFmpeg failed (exit {result.returncode}):\n{stderr}\n" f"Input: {input_path}"
+            f"FFmpeg failed (exit {result.returncode}):\n{stderr}\nInput: {input_path}"
         )
 
     logger.debug("FFmpeg: decoded to %s", output_path)

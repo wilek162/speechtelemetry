@@ -2,10 +2,10 @@
 
 Written into TranscriptDocument for full transparency.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -14,9 +14,9 @@ class BackendProvenance:
 
     stage: str
     backend_name: str
-    model_id: Optional[str] = None
-    device: Optional[str] = None
-    compute_type: Optional[str] = None
+    model_id: str | None = None
+    device: str | None = None
+    compute_type: str | None = None
 
 
 @dataclass
@@ -29,8 +29,8 @@ class PipelineProvenance:
         self,
         stage: str,
         backend_name: str,
-        model_id: Optional[str] = None,
-        device: Optional[str] = None,
+        model_id: str | None = None,
+        device: str | None = None,
     ) -> None:
         self.stages.append(
             BackendProvenance(

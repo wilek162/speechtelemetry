@@ -7,6 +7,7 @@ Classes: neutral, happy, sad, anger (~75.3% accuracy on IEMOCAP test set)
 CRITICAL: Always store full probability distributions. Never collapse to a single label.
 Cross-corpus transfer is limited — treat outputs as estimates, not ground truth.
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,9 +21,10 @@ from speechtelemetry.interfaces import EmotionBackend
 logger = logging.getLogger(__name__)
 
 try:
-    from speechbrain.inference.interfaces import foreign_class
-    import torch
     import soundfile as sf
+    import torch
+    from speechbrain.inference.interfaces import foreign_class
+
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
@@ -42,8 +44,7 @@ class SpeechBrainEmotionBackend(EmotionBackend):
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "speechbrain is not installed.\n"
-                "Run: pip install speechbrain transformers soundfile"
+                "speechbrain is not installed.\nRun: pip install speechbrain transformers soundfile"
             )
 
         if device == "auto":
@@ -71,8 +72,7 @@ class SpeechBrainEmotionBackend(EmotionBackend):
     def _check_available(cls) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
-                "speechbrain is not installed.\n"
-                "Run: pip install speechbrain transformers soundfile"
+                "speechbrain is not installed.\nRun: pip install speechbrain transformers soundfile"
             )
 
     def predict_segment(
@@ -85,7 +85,6 @@ class SpeechBrainEmotionBackend(EmotionBackend):
 
         Returns a dict with full probability distribution — never a single label.
         """
-        import numpy as np  # noqa: PLC0415
 
         data, sr = sf.read(wav_path)
         start_sample = int(start_s * sr)
@@ -113,17 +112,17 @@ class SpeechBrainEmotionBackend(EmotionBackend):
         # Get label names from the encoder
         n_classes = len(probs)
         labels = [
-            self.classifier.hparams.label_encoder.decode_ndim(
-                torch.tensor([i])
-            )[0]
+            self.classifier.hparams.label_encoder.decode_ndim(torch.tensor([i]))[0]
             for i in range(n_classes)
         ]
 
-        label_distribution = dict(zip(labels, probs))
+        label_distribution = dict(zip(labels, probs, strict=False))
 
         return {
             "label_distribution": label_distribution,
-            "top_label": text_lab[0] if text_lab else max(label_distribution, key=label_distribution.__getitem__),
+            "top_label": text_lab[0]
+            if text_lab
+            else max(label_distribution, key=label_distribution.__getitem__),
             "confidence": float(score.squeeze()),
             "backend_name": self.MODEL_HF,
         }

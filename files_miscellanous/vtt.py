@@ -2,6 +2,7 @@
 
 Lossy: only text and timestamps are preserved.
 """
+
 from __future__ import annotations
 
 import logging
