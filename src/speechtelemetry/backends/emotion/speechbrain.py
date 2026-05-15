@@ -39,7 +39,6 @@ class SpeechBrainEmotionBackend(EmotionBackend):
     def __init__(
         self,
         device: str = "auto",
-        savedir: str = ".models/speechbrain",
     ) -> None:
         if not _AVAILABLE:
             raise BackendNotAvailableError(
@@ -50,7 +49,6 @@ class SpeechBrainEmotionBackend(EmotionBackend):
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
 
-        # Prefer SPEECHTELEMETRY_CACHE_DIR if set
         cache_root = os.environ.get(
             "SPEECHTELEMETRY_CACHE_DIR",
             os.path.join(os.path.expanduser("~"), ".cache", "speechtelemetry"),

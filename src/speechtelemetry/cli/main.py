@@ -72,7 +72,14 @@ if _CLI_AVAILABLE:
         )
 
         try:
-            doc = enrich_media(str(input_file), config=config, output_path=output)
+            if output:
+                # Single explicit path: write JSON there only.
+                doc = enrich_media(str(input_file), config=config, output_path=output)
+            else:
+                # No explicit path: write all configured formats to input file's directory.
+                doc = enrich_media(
+                    str(input_file), config=config, output_dir=str(input_file.parent)
+                )
         except EnvironmentCheckError as exc:
             err_console.print(f"\n[red]Pre-flight check failed:[/red]\n{exc}")
             raise typer.Exit(1) from exc

@@ -270,7 +270,11 @@ def run_pipeline(
             elapsed = time.perf_counter() - t0
             report.stage_timings["asr"] = elapsed
             provenance.record(
-                "asr", config.asr_backend, model_id=config.asr_model_size, device=config.device
+                "asr",
+                config.asr_backend,
+                model_id=config.asr_model_size,
+                device=config.device,
+                compute_type=config.asr_compute_type,
             )
             logger.info(
                 "ASR: %d segments transcribed (lang=%s)", len(raw_segments), detected_language
@@ -288,6 +292,7 @@ def run_pipeline(
             raw_segments = []
 
         # ── Stage 5: Alignment ────────────────────────────────────────────
+        _alignment_ran = False
         if raw_segments and detected_language:
             try:
                 logger.debug(
@@ -302,6 +307,7 @@ def run_pipeline(
                 elapsed = time.perf_counter() - t0
                 report.stage_timings["alignment"] = elapsed
                 provenance.record("alignment", config.alignment_backend)
+                _alignment_ran = True
                 total_words = sum(len(s.get("words") or []) for s in raw_segments)
                 logger.info("Alignment: word timestamps added to %d segments", len(raw_segments))
                 logger.debug(
@@ -340,7 +346,10 @@ def run_pipeline(
 
         # ── Build Segment objects ─────────────────────────────────────────
         logger.debug("[pipeline] Building %d typed Segment objects", len(raw_segments))
-        segments = _build_segments(raw_segments, diarize_output)
+        _word_alignment_backend = config.alignment_backend if _alignment_ran else None
+        segments = _build_segments(
+            raw_segments, diarize_output, alignment_backend=_word_alignment_backend
+        )
         segments = _attach_silence_gaps(segments, silence_spans)
 
         # ── Stage 7: Prosody ──────────────────────────────────────────────
@@ -465,6 +474,7 @@ def _segment_confidence(raw: dict[str, Any]) -> float:
 def _build_segments(
     raw_segments: list[dict[str, Any]],
     diarize_output: list[dict[str, Any]],
+    alignment_backend: str | None = None,
 ) -> list[Segment]:
     """Convert raw dicts from ASR/alignment into typed Segment objects."""
     segments: list[Segment] = []
@@ -477,6 +487,7 @@ def _build_segments(
                     start=float(w.get("start", 0.0)),
                     end=float(w.get("end", 0.0)),
                     confidence=float(w.get("score", w.get("confidence", 0.0))),
+                    alignment_backend=alignment_backend,
                 )
                 for w in raw["words"]
             ]

@@ -31,6 +31,7 @@ class PipelineProvenance:
         backend_name: str,
         model_id: str | None = None,
         device: str | None = None,
+        compute_type: str | None = None,
     ) -> None:
         self.stages.append(
             BackendProvenance(
@@ -38,5 +39,6 @@ class PipelineProvenance:
                 backend_name=backend_name,
                 model_id=model_id,
                 device=device,
+                compute_type=compute_type,
             )
         )

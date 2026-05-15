@@ -129,6 +129,13 @@ def test_srt_format_zero():
     assert _format_srt_time(0.0) == "00:00:00,000"
 
 
+def test_srt_format_float_precision():
+    """10.18s must produce 180ms, not 179ms — float truncation bug guard."""
+    from speechtelemetry.exporters.srt import _format_srt_time
+
+    assert _format_srt_time(10.18) == "00:00:10,180"
+
+
 # ── VTT Exporter ──────────────────────────────────────────────────────────────
 
 
@@ -159,6 +166,13 @@ def test_vtt_format_time():
 
     assert _format_vtt_time(3661.5) == "01:01:01.500"
     assert _format_vtt_time(0.0) == "00:00:00.000"
+
+
+def test_vtt_format_float_precision():
+    """10.18s must produce 180ms, not 179ms — float truncation bug guard."""
+    from speechtelemetry.exporters.vtt import _format_vtt_time
+
+    assert _format_vtt_time(10.18) == "00:00:10.180"
 
 
 # ── TextGrid Exporter ──────────────────────────────────────────────────────────

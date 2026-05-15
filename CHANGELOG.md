@@ -9,6 +9,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **`SRTExporter`/`VTTExporter` 1ms truncation**: `_format_srt_time` and `_format_vtt_time` used `int((seconds % 1) * 1000)` — floating-point `10.18 * 1000 = 10179.999...` was truncated to 179ms, producing `10,179` instead of `10,180`. Fixed by computing `round(seconds * 1000)` first and using `divmod` on integer milliseconds throughout. Tests added for the `10.18` edge case.
+- **Mock e2e test overwrote real pipeline output**: `test_mock_output_all_formats` in `test_cli_e2e.py` wrote to `mock_output/` — the same directory as `test_real_pipeline_writes_all_formats_to_mock_output`. Running all integration tests caused the mock data ("hello world", "test audio") to overwrite the real transcript, making it appear the pipeline hadn't processed the actual MP4. Fixed: mock e2e test now writes to `mock_output/cli_e2e/` so the two outputs are permanently separate.
+- **`Word.alignment_backend` always `None`**: `_build_segments()` never set `Word.alignment_backend` even when WhisperX ran. Added `alignment_backend` parameter to `_build_segments()`; pipeline passes the backend name when alignment succeeds and `None` when it was skipped or failed. JSON output now shows `"alignment_backend": "whisperx"` on every word.
+- **`PipelineProvenance.record()` couldn't capture `compute_type`**: `BackendProvenance.compute_type` existed but `record()` had no parameter for it, so it was always `None`. Added `compute_type` parameter to `record()`; pipeline now passes `config.asr_compute_type` when recording ASR provenance. Verified in JSON output: `"compute_type": "int8"` appears on the ASR provenance entry.
+- **Dead `savedir` parameter in `SpeechBrainEmotionBackend.__init__`**: The `savedir` default argument was immediately overridden by the `SPEECHTELEMETRY_CACHE_DIR` env-var logic — the parameter was dead code and misleading. Removed; the cache directory is now computed purely from the env var.
+- **CLI silently dropped configured `export_formats`**: `transcribe` set `export_formats` in config but never passed `output_dir` to `enrich_media()`, so all formats except an explicit `--output` JSON were silently discarded. Fixed: when `--output` is not given the CLI now passes `output_dir=str(input_file.parent)` so all configured formats are written to the input file's directory (matching the `--output` help text "default: same dir as input").
+
+### Tests
+- **Integration `test_real_pipeline_report_has_timings`**: Added `alignment` timing assertion and `real_time_factor > 0` assertion alongside the existing decode/vad/asr checks.
+- **Integration `test_real_pipeline_writes_all_formats_to_mock_output`**: Added assertions for word-level timestamps (`alignment_backend == "whisperx"`, `start`/`end` validity), silence spans (`duration_ms > 0`), and provenance content (vad/asr/alignment stages, `model_id`, `backend_name`).
+- **Integration `test_enrich_media_report_has_stage_timings`**: Added `alignment` timing assertion.
+- **Unit `test_build_segments_sets_alignment_backend_on_words`**: Verifies `Word.alignment_backend` is set when `alignment_backend` is passed to `_build_segments`.
+- **Unit `test_build_segments_alignment_backend_none_by_default`**: Verifies `Word.alignment_backend` is `None` when alignment did not run.
+- **Unit `test_pipeline_continues_when_alignment_fails`**: Verifies fail-soft: pipeline produces segments and records a `StageError` when the alignment backend raises.
+- **Unit `test_pipeline_continues_when_emotion_fails`**: Verifies fail-soft: segments get `emotion=None` and `ProcessingReport.errors` is populated when per-segment emotion prediction raises.
+- **Unit `test_pipeline_records_compute_type_in_asr_provenance`**: Verifies `compute_type` is captured in provenance when set in config.
+
 ### Added
 - **Debug logging throughout the pipeline**: Each stage now emits `DEBUG`-level log lines at entry and exit with key metrics (elapsed time, item counts, config params used). Stages covered: decode, VAD, ASR, alignment, diarization, prosody (per-segment), emotion (per-segment + scored/total summary). Enable with `SPEECHTELEMETRY_LOG_LEVEL=DEBUG` or `--log-cli-level=DEBUG` in pytest.
 - **`pyproject.toml`**: Added `log_level = "DEBUG"` (caplog capture level) and `log_cli_level = "WARNING"` (terminal log threshold) to `[tool.pytest.ini_options]` — debug logs are captured in `caplog` fixtures and visible when running `pytest --log-cli-level=DEBUG`.

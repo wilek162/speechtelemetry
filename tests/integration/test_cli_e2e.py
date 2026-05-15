@@ -29,7 +29,8 @@ from tests.fixtures.mock_backends import (
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _MOCK_MEDIA = str(_REPO_ROOT / "mock_data" / "BLOOD_liquidity_Captions_V2.mp4")
-_MOCK_OUTPUT_DIR = str(_REPO_ROOT / "mock_output")
+# Separate subdirectory so mock-backend output never overwrites real pipeline output.
+_MOCK_OUTPUT_DIR = str(_REPO_ROOT / "mock_output" / "cli_e2e")
 
 _FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None
 _MEDIA_AVAILABLE = os.path.isfile(_MOCK_MEDIA)
@@ -131,6 +132,7 @@ def test_enrich_media_report_has_stage_timings(mock_pipeline):
     assert "decode" in timings, f"No decode timing. Got: {list(timings.keys())}"
     assert "vad" in timings, f"No vad timing. Got: {list(timings.keys())}"
     assert "asr" in timings, f"No asr timing. Got: {list(timings.keys())}"
+    assert "alignment" in timings, f"No alignment timing. Got: {list(timings.keys())}"
     assert timings["decode"] > 0
 
 
@@ -139,9 +141,9 @@ def test_enrich_media_report_has_stage_timings(mock_pipeline):
 def test_enrich_media_no_pipeline_errors(mock_pipeline):
     doc = enrich_media(_MOCK_MEDIA, config=_BASE_CONFIG)
 
-    assert (
-        doc.processing_report.errors == []
-    ), f"Expected no errors; got: {doc.processing_report.errors}"
+    assert doc.processing_report.errors == [], (
+        f"Expected no errors; got: {doc.processing_report.errors}"
+    )
 
 
 @pytest.mark.slow

@@ -247,9 +247,9 @@ def test_asr_transcribe_receives_chunk_size_when_chunk_audio_true():
     call_kwargs = mock_asr.transcribe.call_args
     assert call_kwargs is not None, "ASR transcribe() was never called"
     _, kwargs = call_kwargs
-    assert (
-        "chunk_size_s" in kwargs
-    ), f"chunk_size_s not passed to ASR transcribe(). Got kwargs: {list(kwargs.keys())}"
+    assert "chunk_size_s" in kwargs, (
+        f"chunk_size_s not passed to ASR transcribe(). Got kwargs: {list(kwargs.keys())}"
+    )
 
 
 # ── Config kwargs wired to backend constructors ───────────────────────────────
@@ -322,12 +322,12 @@ def test_pipeline_passes_threshold_to_vad_backend():
     assert vad_calls, "get_backend was never called for stage 'vad'"
     _, _, kwargs = vad_calls[0]
     assert kwargs.get("threshold") == 0.7, f"threshold not passed. Got: {kwargs}"
-    assert (
-        kwargs.get("min_silence_duration_ms") == 500
-    ), f"min_silence_duration_ms not passed. Got: {kwargs}"
-    assert (
-        kwargs.get("min_speech_duration_ms") == 150
-    ), f"min_speech_duration_ms not passed. Got: {kwargs}"
+    assert kwargs.get("min_silence_duration_ms") == 500, (
+        f"min_silence_duration_ms not passed. Got: {kwargs}"
+    )
+    assert kwargs.get("min_speech_duration_ms") == 150, (
+        f"min_speech_duration_ms not passed. Got: {kwargs}"
+    )
 
 
 def test_pipeline_passes_device_to_alignment_backend():
@@ -383,6 +383,168 @@ def test_pipeline_passes_device_to_emotion_backend():
             config,
         )
 
-    assert (
-        captured_kwargs.get("device") == "cpu"
-    ), f"device not passed to emotion backend. Got: {captured_kwargs}"
+    assert captured_kwargs.get("device") == "cpu", (
+        f"device not passed to emotion backend. Got: {captured_kwargs}"
+    )
+
+
+# ── Word.alignment_backend provenance ─────────────────────────────────────────
+
+
+def test_build_segments_sets_alignment_backend_on_words():
+    """Word.alignment_backend must be set when alignment_backend is passed."""
+    raw = [
+        {
+            "start": 0.0,
+            "end": 1.0,
+            "text": "hello",
+            "confidence": 0.9,
+            "words": [{"word": "hello", "start": 0.0, "end": 1.0, "score": 0.9}],
+        }
+    ]
+    segments = _build_segments(raw, [], alignment_backend="whisperx")
+    assert segments[0].words is not None
+    assert segments[0].words[0].alignment_backend == "whisperx"
+
+
+def test_build_segments_alignment_backend_none_by_default():
+    """Word.alignment_backend must be None when alignment did not run."""
+    raw = [
+        {
+            "start": 0.0,
+            "end": 1.0,
+            "text": "hello",
+            "confidence": 0.9,
+            "words": [{"word": "hello", "start": 0.0, "end": 1.0, "score": 0.9}],
+        }
+    ]
+    segments = _build_segments(raw, [], alignment_backend=None)
+    assert segments[0].words is not None
+    assert segments[0].words[0].alignment_backend is None
+
+
+# ── Fail-soft: alignment failure ──────────────────────────────────────────────
+
+
+def test_pipeline_continues_when_alignment_fails():
+    """When alignment raises, pipeline must not crash — segments retain ASR data."""
+    from speechtelemetry.core.pipeline import run_pipeline
+
+    config = PipelineConfig(
+        vad_backend="silero",
+        asr_backend="faster-whisper",
+        alignment_backend="whisperx",
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+        chunk_audio=False,
+    )
+
+    _seg = [{"start": 0.0, "end": 1.0, "text": "hello", "avg_logprob": -0.3, "no_speech_prob": 0.1}]
+
+    def fake_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        m = MagicMock()
+        m.get_speech_intervals.return_value = [{"start": 0.0, "end": 3.0}]
+        m.transcribe.return_value = (_seg, type("Info", (), {"language": "en"})())
+        if stage == "alignment":
+            m.align.side_effect = RuntimeError("alignment model unavailable")
+        return m
+
+    with (
+        patch("speechtelemetry.core.pipeline.preflight_check"),
+        patch("speechtelemetry.core.pipeline.get_backend", side_effect=fake_get_backend),
+        patch("speechtelemetry.core.pipeline._get_duration", return_value=3.0),
+    ):
+        doc = run_pipeline("fake.wav", config, skip_decode=True)
+
+    assert len(doc.segments) == 1, "Segments must still be produced after alignment failure"
+    assert doc.segments[0].text == "hello"
+    alignment_errors = [e for e in doc.processing_report.errors if e.stage == "alignment"]
+    assert len(alignment_errors) == 1, "Alignment failure must be recorded in errors"
+
+
+# ── Fail-soft: emotion failure ────────────────────────────────────────────────
+
+
+def test_pipeline_continues_when_emotion_fails():
+    """When emotion backend raises, pipeline must not crash — segments get no emotion score."""
+    from speechtelemetry.core.pipeline import _attach_emotion
+
+    config = PipelineConfig(
+        device="cpu",
+        emotion_backend="speechbrain",
+        asr_backend="faster-whisper",
+        vad_backend="silero",
+        alignment_backend="whisperx",
+        prosody_backend=[],
+        diarization_backend=None,
+    )
+
+    from speechtelemetry.types import ProcessingReport
+
+    report = ProcessingReport()
+
+    def failing_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        m = MagicMock()
+        m.predict_segment.side_effect = RuntimeError("model load failed")
+        return m
+
+    with patch("speechtelemetry.core.pipeline.get_backend", side_effect=failing_get_backend):
+        from speechtelemetry.types import Segment
+
+        segments = _attach_emotion(
+            [Segment(start=0.0, end=2.0, text="hi", confidence=0.9)],
+            "fake.wav",
+            config,
+            report=report,
+        )
+
+    assert segments[0].emotion is None, "Emotion must be None after per-segment failure"
+    emotion_errors = [e for e in report.errors if e.stage == "emotion"]
+    assert len(emotion_errors) == 1, "Emotion failure must be recorded in ProcessingReport.errors"
+
+
+# ── Provenance: compute_type recorded for ASR ─────────────────────────────────
+
+
+def test_pipeline_records_compute_type_in_asr_provenance():
+    """Provenance must record compute_type when it is set in config."""
+    from speechtelemetry.core.pipeline import run_pipeline
+    from speechtelemetry.provenance import PipelineProvenance
+
+    config = PipelineConfig(
+        asr_backend="faster-whisper",
+        asr_model_size="small",
+        asr_compute_type="int8",
+        device="cpu",
+        vad_backend="silero",
+        alignment_backend="whisperx",
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+        chunk_audio=False,
+    )
+
+    _seg = [{"start": 0.0, "end": 1.0, "text": "hi", "avg_logprob": -0.2, "no_speech_prob": 0.1}]
+
+    def fake_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        m = MagicMock()
+        m.get_speech_intervals.return_value = [{"start": 0.0, "end": 3.0}]
+        m.transcribe.return_value = (_seg, type("Info", (), {"language": "en"})())
+        m.align.return_value = _seg
+        return m
+
+    with (
+        patch("speechtelemetry.core.pipeline.preflight_check"),
+        patch("speechtelemetry.core.pipeline.get_backend", side_effect=fake_get_backend),
+        patch("speechtelemetry.core.pipeline._get_duration", return_value=3.0),
+    ):
+        doc = run_pipeline("fake.wav", config, skip_decode=True)
+
+    assert doc.provenance is not None
+    assert isinstance(doc.provenance, PipelineProvenance)
+    asr_stages = [s for s in doc.provenance.stages if s.stage == "asr"]
+    assert len(asr_stages) == 1, "ASR provenance must be recorded"
+    assert asr_stages[0].compute_type == "int8", (
+        f"compute_type not recorded. Got: {asr_stages[0].compute_type!r}"
+    )

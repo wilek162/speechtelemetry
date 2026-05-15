@@ -118,15 +118,15 @@ def test_real_pipeline_segments_have_valid_timestamps():
     for i, seg in enumerate(doc.segments):
         assert seg.start >= 0, f"Segment {i} has negative start: {seg.start}"
         assert seg.end > seg.start, f"Segment {i}: end {seg.end} <= start {seg.start}"
-        assert (
-            seg.end <= doc.duration_s + 0.5
-        ), f"Segment {i} end {seg.end} exceeds audio duration {doc.duration_s}"
+        assert seg.end <= doc.duration_s + 0.5, (
+            f"Segment {i} end {seg.end} exceeds audio duration {doc.duration_s}"
+        )
 
 
 @pytest.mark.slow
 @skip_unless_ready
 def test_real_pipeline_report_has_timings():
-    """ProcessingReport must record decode, vad, and asr stage timings."""
+    """ProcessingReport must record all mandatory stage timings: decode, vad, asr, alignment."""
     from speechtelemetry import enrich_media
 
     doc = enrich_media(_MOCK_MEDIA, config=_real_config())
@@ -135,6 +135,9 @@ def test_real_pipeline_report_has_timings():
     assert "decode" in timings and timings["decode"] > 0, "Missing decode timing"
     assert "vad" in timings and timings["vad"] > 0, "Missing vad timing"
     assert "asr" in timings and timings["asr"] > 0, "Missing asr timing"
+    assert "alignment" in timings and timings["alignment"] > 0, "Missing alignment timing"
+
+    assert doc.processing_report.real_time_factor > 0, "RTF must be positive"
 
     print(f"\nStage timings: {timings}")
     print(f"RTF: {doc.processing_report.real_time_factor:.3f}")
@@ -173,6 +176,29 @@ def test_real_pipeline_writes_all_formats_to_mock_output():
     assert data["duration_s"] > 0
     assert data["language"] is not None, "Language must be detected"
     assert len(data["segments"]) > 0
+
+    # Word-level timestamps must be present — alignment stage must have run.
+    segs_with_words = [s for s in data["segments"] if s.get("words")]
+    assert len(segs_with_words) > 0, "No segments have word-level timestamps (alignment failed?)"
+    first_word = segs_with_words[0]["words"][0]
+    assert first_word["alignment_backend"] == "whisperx", (
+        f"Word alignment_backend must be 'whisperx', got: {first_word['alignment_backend']!r}"
+    )
+    assert isinstance(first_word["start"], float) and first_word["start"] >= 0
+    assert isinstance(first_word["end"], float) and first_word["end"] > first_word["start"]
+
+    # Silence spans must be populated from VAD output.
+    assert len(data["silence_spans"]) > 0, "silence_spans must be non-empty for real audio"
+    ss = data["silence_spans"][0]
+    assert ss["duration_ms"] > 0, "Silence span duration must be positive"
+
+    # Provenance must record VAD, ASR, and alignment backends.
+    prov_stages = {s["stage"]: s for s in data["provenance"]["stages"]}
+    assert "vad" in prov_stages, "Provenance missing vad stage"
+    assert "asr" in prov_stages, "Provenance missing asr stage"
+    assert "alignment" in prov_stages, "Provenance missing alignment stage"
+    assert prov_stages["asr"]["backend_name"] == "faster-whisper"
+    assert prov_stages["asr"]["model_id"] == "small"
 
     srt = expected["srt"].read_text(encoding="utf-8")
     assert "1\n" in srt, "SRT must contain at least one subtitle entry"

@@ -35,7 +35,7 @@ def test_cli_builds_config_with_device_auto(tmp_path):
 
     captured: list[PipelineConfig] = []
 
-    def fake_enrich_media(path, config=None, output_path=None):
+    def fake_enrich_media(path, config=None, output_path=None, output_dir=None):
         if config is not None:
             captured.append(config)
         return TranscriptDocument(
