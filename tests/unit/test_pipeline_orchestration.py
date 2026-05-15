@@ -548,3 +548,84 @@ def test_pipeline_records_compute_type_in_asr_provenance():
     assert asr_stages[0].compute_type == "int8", (
         f"compute_type not recorded. Got: {asr_stages[0].compute_type!r}"
     )
+
+
+# ── Speaker assignment: overlap-based ─────────────────────────────────────────
+
+
+def test_build_segments_assigns_speaker_by_highest_overlap():
+    """When two turns overlap a segment, the one with the largest overlap wins."""
+    raw = [{"start": 0.0, "end": 2.0, "text": "hi", "confidence": 0.9}]
+    diarize = [
+        {"start": 0.0, "end": 1.5, "speaker": "SPEAKER_00"},
+        {"start": 1.5, "end": 2.0, "speaker": "SPEAKER_01"},
+    ]
+    segments = _build_segments(raw, diarize)
+    assert segments[0].speaker == "SPEAKER_00"
+
+
+def test_build_segments_assigns_speaker_even_when_midpoint_outside_turn():
+    """Overlap-based assignment must work even when the segment midpoint is strictly outside the turn.
+
+    Segment [0.5, 1.4] → midpoint = 0.95, turn ends at 0.9 → midpoint is outside.
+    But there is 0.4s of overlap [0.5, 0.9] → speaker must be assigned.
+    """
+    raw = [{"start": 0.5, "end": 1.4, "text": "hey", "confidence": 0.9}]
+    diarize = [{"start": 0.0, "end": 0.9, "speaker": "SPEAKER_00"}]
+    segments = _build_segments(raw, diarize)
+    assert segments[0].speaker == "SPEAKER_00"
+
+
+def test_build_segments_returns_none_speaker_when_segment_outside_all_turns():
+    """Speaker must be None when the segment has no overlap with any diarization turn."""
+    raw = [{"start": 5.0, "end": 6.0, "text": "echo", "confidence": 0.5}]
+    diarize = [
+        {"start": 0.0, "end": 2.0, "speaker": "SPEAKER_00"},
+        {"start": 3.0, "end": 4.0, "speaker": "SPEAKER_01"},
+    ]
+    segments = _build_segments(raw, diarize)
+    assert segments[0].speaker is None
+
+
+# ── Diarization provenance recorded ───────────────────────────────────────────
+
+
+def test_pipeline_records_diarization_in_provenance():
+    """Provenance must record the diarization stage backend name after a successful run."""
+    from speechtelemetry.core.pipeline import run_pipeline
+    from speechtelemetry.provenance import PipelineProvenance
+
+    config = PipelineConfig(
+        asr_backend="faster-whisper",
+        asr_model_size="small",
+        device="cpu",
+        vad_backend="silero",
+        alignment_backend="whisperx",
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend="pyannote",
+        chunk_audio=False,
+    )
+
+    _seg = [{"start": 0.0, "end": 1.0, "text": "hi", "avg_logprob": -0.2}]
+
+    def fake_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        m = MagicMock()
+        m.get_speech_intervals.return_value = [{"start": 0.0, "end": 3.0}]
+        m.transcribe.return_value = (_seg, type("Info", (), {"language": "en"})())
+        m.align.return_value = _seg
+        m.diarize.return_value = [{"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]
+        return m
+
+    with (
+        patch("speechtelemetry.core.pipeline.preflight_check"),
+        patch("speechtelemetry.core.pipeline.get_backend", side_effect=fake_get_backend),
+        patch("speechtelemetry.core.pipeline._get_duration", return_value=3.0),
+    ):
+        doc = run_pipeline("fake.wav", config, skip_decode=True)
+
+    assert doc.provenance is not None
+    assert isinstance(doc.provenance, PipelineProvenance)
+    diar_stages = [s for s in doc.provenance.stages if s.stage == "diarization"]
+    assert len(diar_stages) == 1, "Diarization provenance must be recorded"
+    assert diar_stages[0].backend_name == "pyannote"

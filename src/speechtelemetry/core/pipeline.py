@@ -336,6 +336,7 @@ def run_pipeline(
                 )
                 elapsed = time.perf_counter() - t0
                 report.stage_timings["diarization"] = elapsed
+                provenance.record("diarization", config.diarization_backend)
                 logger.info("Diarization: %d speaker turns detected", len(diarize_output))
                 logger.debug(
                     "[diarization] Done in %.3fs → %d speaker turns", elapsed, len(diarize_output)
@@ -471,6 +472,29 @@ def _segment_confidence(raw: dict[str, Any]) -> float:
     return sum(scores) / len(scores) if scores else 0.0
 
 
+def _assign_speaker(
+    seg_start: float,
+    seg_end: float,
+    diarize_output: list[dict[str, Any]],
+) -> str | None:
+    """Return the speaker whose turn has the maximum overlap with the segment.
+
+    Uses overlap rather than midpoint so segments that straddle a turn boundary
+    or have a midpoint outside the turn still receive a speaker label.
+    Returns None only when there is zero overlap with every turn.
+    """
+    if not diarize_output:
+        return None
+    best_overlap = 0.0
+    best_speaker: str | None = None
+    for turn in diarize_output:
+        overlap = max(0.0, min(seg_end, float(turn["end"])) - max(seg_start, float(turn["start"])))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_speaker = str(turn["speaker"])
+    return best_speaker
+
+
 def _build_segments(
     raw_segments: list[dict[str, Any]],
     diarize_output: list[dict[str, Any]],
@@ -492,13 +516,11 @@ def _build_segments(
                 for w in raw["words"]
             ]
 
-        speaker: str | None = None
-        if diarize_output:
-            seg_mid = (raw.get("start", 0.0) + raw.get("end", 0.0)) / 2
-            for turn in diarize_output:
-                if turn["start"] <= seg_mid <= turn["end"]:
-                    speaker = str(turn["speaker"])
-                    break
+        speaker = _assign_speaker(
+            float(raw.get("start", 0.0)),
+            float(raw.get("end", 0.0)),
+            diarize_output,
+        )
 
         segments.append(
             Segment(

@@ -77,11 +77,13 @@ packages = ["src/speechtelemetry"]
 line-length = 100
 target-version = "py310"
 src = ["src"]
-exclude = ["files_miscellanous"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"src/speechtelemetry/interfaces.py" = ["B027"]  # _check_available is an opt-in hook, not abstract
 
 # ── Mypy (type checker) ────────────────────────────────────────────────────────
 [tool.mypy]

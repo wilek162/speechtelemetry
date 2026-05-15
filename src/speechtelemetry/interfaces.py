@@ -31,7 +31,7 @@ class VADBackend(ABC):
             List of {"start": float, "end": float} dicts, in seconds.
         """
 
-    @classmethod  # noqa: B027
+    @classmethod
     def _check_available(cls) -> None:
         """Raise BackendNotAvailableError if the backend's dependencies are missing.
 
@@ -61,7 +61,7 @@ class ASRBackend(ABC):
             info is a backend-specific object (may be None).
         """
 
-    @classmethod  # noqa: B027
+    @classmethod
     def _check_available(cls) -> None: ...
 
 
@@ -84,7 +84,7 @@ class AlignmentBackend(ABC):
             [{"word": str, "start": float, "end": float, "score": float}, ...]
         """
 
-    @classmethod  # noqa: B027
+    @classmethod
     def _check_available(cls) -> None: ...
 
 
@@ -107,7 +107,7 @@ class DiarizationBackend(ABC):
             Speaker format: "SPEAKER_00", "SPEAKER_01", etc.
         """
 
-    @classmethod  # noqa: B027
+    @classmethod
     def _check_available(cls) -> None: ...
 
 
@@ -131,7 +131,7 @@ class ProsodyBackend(ABC):
              "energy_mean": float, "energy_variance": float}
         """
 
-    @classmethod  # noqa: B027
+    @classmethod
     def _check_available(cls) -> None: ...
 
 
@@ -156,7 +156,7 @@ class EmotionBackend(ABC):
              "backend_name": str}
         """
 
-    @classmethod  # noqa: B027
+    @classmethod
     def _check_available(cls) -> None: ...
 
 

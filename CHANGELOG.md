@@ -9,6 +9,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **Multi-speaker diarization end-to-end**: New integration test `tests/integration/test_diarization_speaker_detection.py` validates the full pipeline on `ABSOLUTELYNOT_Sequence02.mp4` with pyannote.audio — asserts ≥2 distinct speakers, ≥70% coverage, SPEAKER_NN label format, diarization provenance, and all four export formats containing speaker information.
+- **Pre-commit ruff scope fix**: Added `exclude: ^files_miscellanous/` to both ruff hooks in `.pre-commit-config.yaml` so draft files in that directory are not scanned, consistent with the `exclude` already set in `pyproject.toml`.
+
+### Fixed
+- **Diarization provenance not recorded**: `run_pipeline()` called `provenance.record()` for VAD, ASR, and alignment but never for diarization. Added `provenance.record("diarization", config.diarization_backend)` after a successful diarization run.
+- **Speaker assignment used segment midpoint only**: `_build_segments()` assigned speakers by checking whether the segment midpoint fell within a diarization turn; if the midpoint was outside every turn (e.g. near a turn boundary), the segment got `speaker=None`. Replaced with a `_assign_speaker()` helper that picks the turn with **maximum overlap** with the segment — segments straddling a turn boundary now receive the correct speaker label.
+- **pyannote 3.x / huggingface_hub ≥ 0.23 incompatibility**: pyannote 3.x passes `use_auth_token=` to `hf_hub_download()` throughout its codebase, but huggingface_hub ≥ 0.23 renamed the parameter to `token`. Applied a compatibility patch in `backends/diarization/pyannote.py` that patches the `hf_hub_download` local reference in every relevant pyannote module at import time.
+- **pyannote 3.x / PyTorch 2.6+ weights_only incompatibility**: PyTorch 2.6+ changed `torch.load` default to `weights_only=True`; pyannote checkpoint files contain non-tensor objects (`TorchVersion`, `Specifications`, etc.) that are rejected. Applied a compatibility patch that defaults `weights_only=False` for `pl_load` calls originating from pyannote/pytorch_lightning model loading.
+- **SpeechBrain LazyModule masking diarization errors**: The existing `_patch_speechbrain_lazy_modules()` fix in `core/pipeline.py` did not cover code paths where the pyannote backend was loaded in isolation (e.g. integration tests that import `PyannoteBackend` directly). Applied the same LazyModule patch inside `_patch_pyannote_compat()` so it runs whenever the diarization backend is imported.
+- **pyannote gated model fallback**: Both recommended pyannote models (`speaker-diarization-community-1` and `speaker-diarization-3.1`) require explicit HuggingFace license acceptance. Added automatic fallback to `tensorlake/speaker-diarization-3.1` (MIT-licensed community mirror, no gating required) so diarization works out of the box without requiring the user to visit the HF model page first.
+
+### Tests
+- **Unit `test_build_segments_assigns_speaker_by_highest_overlap`**: Verifies that when two turns overlap a segment, the one with the largest overlap wins.
+- **Unit `test_build_segments_assigns_speaker_even_when_midpoint_outside_turn`**: Verifies overlap-based assignment works when the segment midpoint is strictly outside the winning turn.
+- **Unit `test_build_segments_returns_none_speaker_when_segment_outside_all_turns`**: Verifies speaker is `None` when the segment has zero overlap with every diarization turn.
+- **Unit `test_pipeline_records_diarization_in_provenance`**: Verifies `doc.provenance.stages` contains a diarization entry after a successful diarization run.
+
 ### Fixed
 - **`SRTExporter`/`VTTExporter` 1ms truncation**: `_format_srt_time` and `_format_vtt_time` used `int((seconds % 1) * 1000)` — floating-point `10.18 * 1000 = 10179.999...` was truncated to 179ms, producing `10,179` instead of `10,180`. Fixed by computing `round(seconds * 1000)` first and using `divmod` on integer milliseconds throughout. Tests added for the `10.18` edge case.
 - **Mock e2e test overwrote real pipeline output**: `test_mock_output_all_formats` in `test_cli_e2e.py` wrote to `mock_output/` — the same directory as `test_real_pipeline_writes_all_formats_to_mock_output`. Running all integration tests caused the mock data ("hello world", "test audio") to overwrite the real transcript, making it appear the pipeline hadn't processed the actual MP4. Fixed: mock e2e test now writes to `mock_output/cli_e2e/` so the two outputs are permanently separate.

@@ -9,16 +9,17 @@ repos:
       - id: check-json
       - id: check-merge-conflict
       - id: check-added-large-files
-        args: ["--maxkb=500"]  # Prevent accidental model weights or media commits
+        args: ["--maxkb=500"] # Prevent accidental model weights or media commits
       - id: detect-private-key
-      - id: check-ast  # Syntax-check all Python files before committing
+      - id: check-ast # Syntax-check all Python files before committing
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.13
+    rev: v0.15.12
     hooks:
       - id: ruff
-        args: ["--fix"]
+        args: ["--fix", "--exit-non-zero-on-fix"]
       - id: ruff-format
+
 
   # Custom hooks: reject hardcoded credentials
   - repo: local
@@ -26,14 +27,14 @@ repos:
       - id: no-hf-tokens
         name: Reject hardcoded HuggingFace tokens
         language: pygrep
-        entry: 'hf_[a-zA-Z0-9]{20,}'
+        entry: "hf_[a-zA-Z0-9]{20,}"
         types: [python]
         exclude: ^tests/
 
       - id: no-openai-keys
         name: Reject hardcoded OpenAI API keys
         language: pygrep
-        entry: 'sk-[a-zA-Z0-9]{32,}'
+        entry: "sk-[a-zA-Z0-9]{32,}"
         types: [python]
         exclude: ^tests/
 
