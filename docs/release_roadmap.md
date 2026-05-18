@@ -1,8 +1,9 @@
 # speechtelemetry v0.1 — Public Release Roadmap
 
 **Generated:** 2026-05-18
+**Last updated:** 2026-05-18 (Phase 1 + B5 complete)
 **Branch:** master
-**Status:** Pre-release. All quality gates pass except coverage (53%, threshold 70%).
+**Status:** Pre-release. Coverage 73.71% ✅ (threshold 70% passed). Phase 1 and blocker B5 resolved. Phase 2 (B6, B7) in progress.
 
 ---
 
@@ -17,12 +18,17 @@
 | All 6 default backend implementations (faster-whisper, silero, whisperx, pyannote, parselmouth, speechbrain) | ✅ complete |
 | All 4 exporters (JSON, SRT, VTT, TextGrid) | ✅ complete |
 | CLI (`speechtelemetry transcribe`, `speechtelemetry info`) | ✅ complete |
-| 124 unit tests — all passing | ✅ |
+| 189 unit tests — all passing | ✅ |
+| Backend contract unit tests — all 6 backends (import guard, ABC, signatures) | ✅ |
+| API stage-level function tests (`test_api.py`) | ✅ |
+| FFmpeg error path tests (`test_ffmpeg.py`) | ✅ |
+| Pipeline preflight + export path tests (extended `test_pipeline_orchestration.py`) | ✅ |
+| Registry GPL warning + instantiation tests (extended `test_registry.py`) | ✅ |
 | `ruff check` — clean | ✅ |
 | `ruff format --check` — clean | ✅ |
 | `mypy src/` — clean (34 source files) | ✅ |
 | GitHub Actions CI workflow (`.github/workflows/ci.yml`) | ✅ |
-| `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md` | ✅ |
+| `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (`black` → `ruff format` fixed) | ✅ |
 | `tests/fixtures/sample_16k_mono.wav` — deterministic 3s WAV | ✅ |
 | `tests/fixtures/mock_backends.py` — deterministic ML-free mocks | ✅ |
 | Integration tests (real pipeline + diarization) | ✅ written; require media files |
@@ -31,13 +37,13 @@
 
 | ID | Blocker | Severity |
 |----|---------|----------|
-| **B1** | Coverage 53% — fails `--cov-fail-under=70` in CI | **Critical** |
-| **B2** | No backend contract unit tests (0% coverage on all 6 backends) | **Critical** |
-| **B3** | `api.py` stage-level functions untested (29% coverage) | **High** |
-| **B4** | `io/ffmpeg.py` error paths untested (50% coverage) | **High** |
-| **B5** | `CONTRIBUTING.md` references `black` instead of `ruff format` | **Medium** |
+| **B1** | ~~Coverage 53% — fails `--cov-fail-under=70` in CI~~ → 73.71% | ✅ Resolved |
+| **B2** | ~~No backend contract unit tests (0% coverage on all 6 backends)~~ | ✅ Resolved |
+| **B3** | ~~`api.py` stage-level functions untested (29% coverage)~~ → 79% | ✅ Resolved |
+| **B4** | ~~`io/ffmpeg.py` error paths untested (50% coverage)~~ → 100% | ✅ Resolved |
+| **B5** | ~~`CONTRIBUTING.md` references `black` instead of `ruff format`~~ | ✅ Resolved |
 | **B6** | Registry stubs for 9 unimplemented backends could mislead users | **Medium** |
-| **B7** | No committed golden output for `sample_16k_mono.wav` | **Medium** |
+| **B7** | No committed golden output structural test for `sample_16k_mono.wav` | **Medium** |
 | **B8** | Package not published on PyPI | **Must-have for public release** |
 | **B9** | GitHub repository not confirmed public | **Must-have for public release** |
 
@@ -239,14 +245,19 @@ All tests use `unittest.mock.patch` on `speechtelemetry.registry.get_backend` �
 
 #### Coverage summary after Phase 1
 
-| Module | Before | After (estimated) |
-|--------|--------|-------------------|
-| All 6 backends | 0% | ~50% each |
-| `api.py` | 29% | ~85% |
-| `io/ffmpeg.py` | 50% | ~90% |
-| `registry.py` | 58% | ~90% |
-| `core/pipeline.py` | 65% | ~80% |
-| **Total** | **53%** | **~73%** ✅ |
+| Module | Before | After (actual, 2026-05-18) |
+|--------|--------|---------------------------|
+| `backends/vad/silero.py` | 0% | 60% |
+| `backends/asr/faster_whisper.py` | 0% | 53% |
+| `backends/alignment/whisperx.py` | 0% | 40% |
+| `backends/diarization/pyannote.py` | 0% | 50% |
+| `backends/prosody/parselmouth.py` | 0% | 40% |
+| `backends/emotion/speechbrain.py` | 0% | 48% |
+| `api.py` | 29% | 79% |
+| `io/ffmpeg.py` | 50% | 100% |
+| `registry.py` | 58% | 77% |
+| `core/pipeline.py` | 65% | 76% |
+| **Total** | **53%** | **73.71%** ✅ |
 
 ---
 
@@ -422,12 +433,12 @@ The current install emits `UserWarning: torchaudio._backend.list_audio_backends 
 
 All of the following must be true:
 
-- [ ] `python -m pytest tests/unit/ --cov=src/speechtelemetry --cov-fail-under=70 -q` exits 0
-- [ ] `ruff check src/ tests/` exits 0
-- [ ] `ruff format --check src/ tests/` exits 0
-- [ ] `mypy src/` exits 0
-- [ ] `pre-commit run --all-files` exits 0
-- [ ] `CONTRIBUTING.md` contains no reference to `black`
+- [x] `python -m pytest tests/unit/ --cov=src/speechtelemetry --cov-fail-under=70 -q` exits 0 — 73.71% ✅
+- [x] `ruff check src/ tests/` exits 0 ✅
+- [x] `ruff format --check src/ tests/` exits 0 ✅
+- [x] `mypy src/` exits 0 ✅
+- [x] `pre-commit run --all-files` exits 0 ✅
+- [x] `CONTRIBUTING.md` contains no reference to `black` ✅
 - [ ] `CHANGELOG.md` has a `[0.1.0]` entry with a release date
 - [ ] `pip install speechtelemetry[default]` succeeds on a clean environment
 - [ ] `speechtelemetry transcribe --help` prints usage
