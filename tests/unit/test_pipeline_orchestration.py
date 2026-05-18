@@ -5,13 +5,19 @@ TDD: Tests written before implementation fixes. All use mock backends — no ML,
 
 from __future__ import annotations
 
+import os
+import sys
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from speechtelemetry.config import PipelineConfig
 from speechtelemetry.core.pipeline import (
     _build_segments,
     _compute_silence_spans,
+    preflight_check,
 )
+from speechtelemetry.exceptions import EnvironmentCheckError
 from speechtelemetry.types import Segment, SilenceSpan
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -629,3 +635,144 @@ def test_pipeline_records_diarization_in_provenance():
     diar_stages = [s for s in doc.provenance.stages if s.stage == "diarization"]
     assert len(diar_stages) == 1, "Diarization provenance must be recorded"
     assert diar_stages[0].backend_name == "pyannote"
+
+
+# ── preflight_check ───────────────────────────────────────────────────────────
+
+
+def _mock_cls() -> MagicMock:
+    """Return a MagicMock that passes _check_available() without raising."""
+    cls = MagicMock()
+    cls._check_available = MagicMock(return_value=None)
+    return cls
+
+
+def test_preflight_raises_when_ffmpeg_missing():
+    config = PipelineConfig(diarization_backend=None, prosody_backend=[], emotion_backend=None)
+    with (
+        patch("speechtelemetry.core.pipeline.shutil.which", return_value=None),
+        patch("speechtelemetry.core.pipeline.resolve_backend", return_value=_mock_cls()),
+        pytest.raises(EnvironmentCheckError) as exc_info,
+    ):
+        preflight_check(config)
+    assert "FFmpeg" in str(exc_info.value)
+
+
+def test_preflight_raises_when_cuda_not_available():
+    config = PipelineConfig(
+        device="cuda",
+        diarization_backend=None,
+        prosody_backend=[],
+        emotion_backend=None,
+    )
+    mock_torch = MagicMock()
+    mock_torch.cuda.is_available.return_value = False
+
+    with (
+        patch("speechtelemetry.core.pipeline.shutil.which", return_value="/usr/bin/ffmpeg"),
+        patch("speechtelemetry.core.pipeline.resolve_backend", return_value=_mock_cls()),
+        patch.dict(sys.modules, {"torch": mock_torch}),
+        pytest.raises(EnvironmentCheckError) as exc_info,
+    ):
+        preflight_check(config)
+    assert "cuda" in str(exc_info.value).lower()
+
+
+def test_preflight_raises_when_hf_token_missing_for_diarization():
+    config = PipelineConfig(
+        diarization_backend="pyannote",
+        prosody_backend=[],
+        emotion_backend=None,
+    )
+    env_clean = {k: v for k, v in os.environ.items() if k not in ("HF_TOKEN", "HUGGINGFACE_TOKEN")}
+
+    with (
+        patch("speechtelemetry.core.pipeline.shutil.which", return_value="/usr/bin/ffmpeg"),
+        patch("speechtelemetry.core.pipeline.resolve_backend", return_value=_mock_cls()),
+        patch.dict(os.environ, env_clean, clear=True),
+        pytest.raises(EnvironmentCheckError) as exc_info,
+    ):
+        preflight_check(config)
+    assert "HF_TOKEN" in str(exc_info.value)
+
+
+def test_preflight_passes_when_all_checks_satisfied():
+    config = PipelineConfig(diarization_backend=None, prosody_backend=[], emotion_backend=None)
+    with (
+        patch("speechtelemetry.core.pipeline.shutil.which", return_value="/usr/bin/ffmpeg"),
+        patch("speechtelemetry.core.pipeline.resolve_backend", return_value=_mock_cls()),
+    ):
+        preflight_check(config)  # must not raise
+
+
+# ── run_pipeline export path ──────────────────────────────────────────────────
+
+
+def _make_minimal_fake_get_backend(exporter: MagicMock) -> object:
+    """Return a fake_get_backend side-effect that injects the given exporter."""
+
+    def fake_get_backend(stage: str, name: str, **kwargs: object) -> MagicMock:
+        if stage == "exporter":
+            return exporter
+        m = MagicMock()
+        m.get_speech_intervals.return_value = []
+        m.transcribe.return_value = ([], None)
+        m.align.return_value = []
+        return m
+
+    return fake_get_backend
+
+
+def test_run_pipeline_calls_exporter_when_output_dir_set(tmp_path: object) -> None:
+    """Pipeline must call exporter.export() for each export_format when output_dir is given."""
+    from speechtelemetry.core.pipeline import run_pipeline
+
+    config = PipelineConfig(
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+        export_formats=["json"],
+    )
+    mock_exporter = MagicMock()
+
+    with (
+        patch("speechtelemetry.core.pipeline.preflight_check"),
+        patch(
+            "speechtelemetry.core.pipeline.get_backend",
+            side_effect=_make_minimal_fake_get_backend(mock_exporter),
+        ),
+        patch("speechtelemetry.core.pipeline._get_duration", return_value=3.0),
+    ):
+        run_pipeline("fake.wav", config, skip_decode=True, output_dir=str(tmp_path))
+
+    mock_exporter.export.assert_called_once()
+
+
+def test_export_failure_recorded_as_stage_error_and_pipeline_continues(
+    tmp_path: object,
+) -> None:
+    """Export failure must be caught, recorded in ProcessingReport, and must not raise."""
+    from speechtelemetry.core.pipeline import run_pipeline
+
+    config = PipelineConfig(
+        emotion_backend=None,
+        prosody_backend=[],
+        diarization_backend=None,
+        export_formats=["json"],
+    )
+    mock_exporter = MagicMock()
+    mock_exporter.export.side_effect = RuntimeError("disk full")
+
+    with (
+        patch("speechtelemetry.core.pipeline.preflight_check"),
+        patch(
+            "speechtelemetry.core.pipeline.get_backend",
+            side_effect=_make_minimal_fake_get_backend(mock_exporter),
+        ),
+        patch("speechtelemetry.core.pipeline._get_duration", return_value=3.0),
+    ):
+        doc = run_pipeline("fake.wav", config, skip_decode=True, output_dir=str(tmp_path))
+
+    export_errors = [e for e in doc.processing_report.errors if "export" in e.stage]
+    assert len(export_errors) == 1
+    assert "disk full" in export_errors[0].message

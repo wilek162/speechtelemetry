@@ -67,7 +67,7 @@ See `docs/agent_playbook.md` for the full step-by-step workflow.
 
 ```bash
 ruff check src/ tests/
-black src/ tests/
+ruff format --check src/ tests/
 mypy src/
 ```
 

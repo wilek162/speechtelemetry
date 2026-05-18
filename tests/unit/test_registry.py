@@ -78,3 +78,44 @@ def test_registry_string_paths_are_valid_format():
             module, cls = path.rsplit(".", 1)
             assert module, f"{stage}/{name}: module part must not be empty"
             assert cls, f"{stage}/{name}: class part must not be empty"
+
+
+def test_get_backend_instantiates_with_kwargs():
+    """get_backend must pass kwargs to the backend constructor."""
+
+    class ParameterizedBackend:
+        def __init__(self, value: int = 0) -> None:
+            self.value = value
+
+    register("test-instantiation-stage", "param-backend", ParameterizedBackend)
+    backend = get_backend("test-instantiation-stage", "param-backend", value=42)
+    assert isinstance(backend, ParameterizedBackend)
+    assert backend.value == 42
+
+
+def test_gpl_backend_emits_user_warning_on_resolve():
+    """resolve_backend for the parselmouth backend must emit a GPL UserWarning."""
+    import importlib as _importlib
+    import warnings
+    from unittest.mock import MagicMock, patch
+
+    from speechtelemetry.registry import _CLASS_CACHE
+
+    _CLASS_CACHE.pop("prosody:parselmouth", None)
+
+    mock_cls = MagicMock()
+    mock_module = MagicMock()
+    mock_module.ParselmouthBackend = mock_cls
+
+    try:
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            with patch.object(_importlib, "import_module", return_value=mock_module):
+                resolve_backend("prosody", "parselmouth")
+
+        gpl_warnings = [w for w in captured if "GPL" in str(w.message)]
+        assert len(gpl_warnings) > 0, (
+            f"Expected a GPL UserWarning but got: {[str(w.message) for w in captured]}"
+        )
+    finally:
+        _CLASS_CACHE.pop("prosody:parselmouth", None)
