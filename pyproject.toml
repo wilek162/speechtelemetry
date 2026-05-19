@@ -35,7 +35,8 @@ asr     = ["faster-whisper>=1.0"]
 align   = ["whisperx>=3"]
 vad     = ["silero-vad>=5", "torchaudio>=2.0"]
 diarize = ["pyannote.audio>=3.1"]
-prosody = ["praat-parselmouth>=0.4", "copasul>=1.0"]
+prosody = ["praat-parselmouth>=0.4"]
+# copasul and librosa will be added here when their backends are implemented (see registry.py)
 emotion = ["speechbrain>=1.0", "transformers>=4.30"]
 cli     = ["typer[all]>=0.9", "rich>=13"]
 # GPU extras: install CUDA-enabled torch BEFORE installing speechtelemetry[cuda].

@@ -390,8 +390,11 @@ def test_json_output_floats_clean(doc_with_emotion, tmp_path):
     # No floating-point trailing 9s or 0s noise
     assert "9999999" not in raw
     assert "0000001" not in raw
-    # No scientific notation from near-zero values
-    assert "e-" not in raw
+    # No scientific notation from near-zero float values (e.g. 2.14e-12 → 0.0)
+    # Use regex to avoid matching legitimate strings like "large-v3" or "e-mail"
+    import re
+
+    assert not re.search(r"\d[eE][+-]\d", raw), "Scientific notation in float values detected"
 
 
 def test_srt_no_overlaps_on_real_wav_output(doc_with_emotion, tmp_path):
