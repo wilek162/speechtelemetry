@@ -1,9 +1,9 @@
 # speechtelemetry v0.1 — Public Release Roadmap
 
 **Generated:** 2026-05-18
-**Last updated:** 2026-05-18 (Phase 1 + B5 complete)
+**Last updated:** 2026-05-19 (Phase 2 complete — B6 + B7 resolved)
 **Branch:** master
-**Status:** Pre-release. Coverage 73.71% ✅ (threshold 70% passed). Phase 1 and blocker B5 resolved. Phase 2 (B6, B7) in progress.
+**Status:** Release candidate. Coverage 74.21% ✅. All Phase 1 + Phase 2 blockers resolved. B8/B9 (PyPI + GitHub) are pre-publish steps.
 
 ---
 
@@ -18,20 +18,23 @@
 | All 6 default backend implementations (faster-whisper, silero, whisperx, pyannote, parselmouth, speechbrain) | ✅ complete |
 | All 4 exporters (JSON, SRT, VTT, TextGrid) | ✅ complete |
 | CLI (`speechtelemetry transcribe`, `speechtelemetry info`) | ✅ complete |
-| 189 unit tests — all passing | ✅ |
+| 199 unit tests — all passing (74.21% coverage) | ✅ |
 | Backend contract unit tests — all 6 backends (import guard, ABC, signatures) | ✅ |
 | API stage-level function tests (`test_api.py`) | ✅ |
 | FFmpeg error path tests (`test_ffmpeg.py`) | ✅ |
 | Pipeline preflight + export path tests (extended `test_pipeline_orchestration.py`) | ✅ |
 | Registry GPL warning + instantiation tests (extended `test_registry.py`) | ✅ |
+| Golden output structural test (`tests/unit/test_golden_output.py`) — B7 | ✅ |
+| Planned backends documented in `docs/developer_reference.md` §3.9 + `registry.py` comments — B6 | ✅ |
 | `ruff check` — clean | ✅ |
 | `ruff format --check` — clean | ✅ |
 | `mypy src/` — clean (34 source files) | ✅ |
+| `pre-commit run --all-files` — clean | ✅ |
 | GitHub Actions CI workflow (`.github/workflows/ci.yml`) | ✅ |
 | `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (`black` → `ruff format` fixed) | ✅ |
 | `tests/fixtures/sample_16k_mono.wav` — deterministic 3s WAV | ✅ |
 | `tests/fixtures/mock_backends.py` — deterministic ML-free mocks | ✅ |
-| Integration tests (real pipeline + diarization) | ✅ written; require media files |
+| Integration tests (real pipeline + diarization + emotion) | ✅ written; require media files |
 
 ### What is blocking release
 
@@ -42,8 +45,8 @@
 | **B3** | ~~`api.py` stage-level functions untested (29% coverage)~~ → 79% | ✅ Resolved |
 | **B4** | ~~`io/ffmpeg.py` error paths untested (50% coverage)~~ → 100% | ✅ Resolved |
 | **B5** | ~~`CONTRIBUTING.md` references `black` instead of `ruff format`~~ | ✅ Resolved |
-| **B6** | Registry stubs for 9 unimplemented backends could mislead users | **Medium** |
-| **B7** | No committed golden output structural test for `sample_16k_mono.wav` | **Medium** |
+| **B6** | ~~Registry stubs for 9 unimplemented backends could mislead users~~ → `# future` comments in `registry.py` + §3.9 in `developer_reference.md` | ✅ Resolved |
+| **B7** | ~~No committed golden output structural test for `sample_16k_mono.wav`~~ → `tests/unit/test_golden_output.py` (10 tests) | ✅ Resolved |
 | **B8** | Package not published on PyPI | **Must-have for public release** |
 | **B9** | GitHub repository not confirmed public | **Must-have for public release** |
 
@@ -433,17 +436,17 @@ The current install emits `UserWarning: torchaudio._backend.list_audio_backends 
 
 All of the following must be true:
 
-- [x] `python -m pytest tests/unit/ --cov=src/speechtelemetry --cov-fail-under=70 -q` exits 0 — 73.71% ✅
+- [x] `python -m pytest tests/unit/ --cov=src/speechtelemetry --cov-fail-under=70 -q` exits 0 — 74.21% ✅
 - [x] `ruff check src/ tests/` exits 0 ✅
 - [x] `ruff format --check src/ tests/` exits 0 ✅
 - [x] `mypy src/` exits 0 ✅
 - [x] `pre-commit run --all-files` exits 0 ✅
 - [x] `CONTRIBUTING.md` contains no reference to `black` ✅
-- [ ] `CHANGELOG.md` has a `[0.1.0]` entry with a release date
+- [x] `CHANGELOG.md` has a `[0.1.0]` entry with a release date ✅ (2026-05-19)
 - [ ] `pip install speechtelemetry[default]` succeeds on a clean environment
-- [ ] `speechtelemetry transcribe --help` prints usage
-- [ ] `speechtelemetry info` lists all registered backends
-- [ ] `python -c "from speechtelemetry import enrich_media, PipelineConfig; print('ok')"` prints `ok`
+- [x] `speechtelemetry transcribe --help` prints usage ✅
+- [x] `speechtelemetry info` lists all registered backends ✅
+- [x] `python -c "from speechtelemetry import enrich_media, PipelineConfig; print('ok')"` prints `ok` ✅
 - [ ] GitHub Actions CI passes (lint + unit + secret scan) on `master`
 - [ ] Package published to PyPI as `speechtelemetry==0.1.0`
 

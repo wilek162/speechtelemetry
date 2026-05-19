@@ -354,6 +354,55 @@ pip install speechbrain>=1.0 transformers>=4.30
 
 ---
 
+### 3.9 Planned backends (not yet implemented)
+
+The registry lists the following backends as future targets. Specifying one of these names in `PipelineConfig` raises `BackendNotFoundError` or `ImportError` (module not found) today — they are placeholders signalling contributor intent, not available features. Each entry includes the target install command once implementation ships.
+
+#### ASR
+
+| Name | Install (future) | License | Notes |
+|------|-----------------|---------|-------|
+| `whisperx` (combined ASR mode) | `pip install whisperx>=3` | BSD-4-Clause | Combined ASR + alignment. Currently implemented as alignment-only backend. |
+| `whisper.cpp` | `pip install whispercpp` | MIT | CTranslate2 alternative; better Windows compat |
+| `sensevoice` | `pip install funasr` | Apache 2.0 | FunASR SenseVoice multilingual model |
+
+#### VAD
+
+| Name | Install (future) | License | Notes |
+|------|-----------------|---------|-------|
+| `funasr` | `pip install funasr` | Apache 2.0 | FunASR VAD model |
+
+#### Alignment
+
+| Name | Install (future) | License | Notes |
+|------|-----------------|---------|-------|
+| `forcealign` | `pip install forcealign` | MIT | Alternative to WhisperX for forced alignment |
+
+#### Diarization
+
+| Name | Install (future) | License | Notes |
+|------|-----------------|---------|-------|
+| `funasr` | `pip install funasr` | Apache 2.0 | FunASR speaker diarization; no HF_TOKEN required |
+
+#### Prosody
+
+| Name | Install (future) | License | Notes |
+|------|-----------------|---------|-------|
+| `librosa` | `pip install librosa` | MIT | Permissive prosody alternative to parselmouth |
+| `copasul` | `pip install copasul` | MIT | Advanced intonation stylization |
+| `audioflux` | `pip install audioflux` | Apache 2.0 | Low-level audio feature extraction |
+
+#### Emotion
+
+| Name | Install (future) | License | Notes |
+|------|-----------------|---------|-------|
+| `emotion2vec` | `pip install funasr` | Apache 2.0 | emotion2vec+ model via FunASR |
+| `emobox` | `pip install emobox` | MIT | Multi-corpus emotion models |
+
+To implement any of the above, follow the **Adding a new backend** steps in `docs/agent_playbook.md`.
+
+---
+
 ## 4. Configuration reference
 
 ### 4.1 PipelineConfig fields

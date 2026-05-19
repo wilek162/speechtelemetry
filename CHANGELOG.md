@@ -9,7 +9,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **`speechtelemetry info` crashes on Windows cp1252 terminals**: The Unicode check mark `✓` (U+2713) and cross `✗` (U+2717) in the FFmpeg status line cannot be encoded by the Windows legacy cp1252 codepage, raising `UnicodeEncodeError` at runtime. Replaced with ASCII-safe Rich markup `[green]found[/green]` / `[red]NOT FOUND[/red]`.
+
 ### Added
+- **Golden output structural test (B7)**: `tests/unit/test_golden_output.py` — 10 unit tests that run `enrich_audio()` on `tests/fixtures/sample_16k_mono.wav` with ML-free mock backends and assert: duration within 5% of 3.0s, segments list, zero pipeline errors, stage timings populated, silence spans present, emotion scores on eligible segments, full probability distribution in `EmotionScore.label_distribution`, JSON round-trip with all canonical fields, and per-segment structural schema.
+- **Planned backends documented (B6)**: `docs/developer_reference.md` now includes a "Planned backends" section (§3.9) listing all 11 registry stubs with target install commands and license notes. `registry.py` now has `# future` comments on each unimplemented stub so they are clearly distinguished from implemented backends.
+- **Diarization integration test now includes emotion**: `test_diarization_speaker_detection.py` updated to run `emotion_backend="speechbrain"` so the diarization mock output (`mock_output/diarization/ABSOLUTELYNOT_Sequence02.*`) includes real emotion scores per segment.
 - **Multi-speaker diarization end-to-end**: New integration test `tests/integration/test_diarization_speaker_detection.py` validates the full pipeline on `ABSOLUTELYNOT_Sequence02.mp4` with pyannote.audio — asserts ≥2 distinct speakers, ≥70% coverage, SPEAKER_NN label format, diarization provenance, and all four export formats containing speaker information.
 - **Pre-commit ruff scope fix**: Added `exclude: ^files_miscellanous/` to both ruff hooks in `.pre-commit-config.yaml` so draft files in that directory are not scanned, consistent with the `exclude` already set in `pyproject.toml`.
 
@@ -127,6 +133,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [0.1.0] — TBD
+## [0.1.0] — 2026-05-19
 
 _First public release._
+
+### Summary
+
+- Full pipeline: Decode → Normalize → VAD → ASR → Align → Diarize → Prosody → Emotion → Export
+- Six default ML backends: Silero VAD, faster-whisper ASR, WhisperX alignment, pyannote diarization, parselmouth prosody, SpeechBrain emotion
+- Four export formats: JSON, SRT, VTT, TextGrid
+- CLI: `speechtelemetry transcribe`, `speechtelemetry info`
+- 189 unit tests, 73.71% coverage, all quality gates green

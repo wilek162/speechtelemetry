@@ -116,9 +116,10 @@ if _CLI_AVAILABLE:
 
         # FFmpeg
         ffmpeg = shutil.which("ffmpeg")
-        console.print(
-            f"FFmpeg: {'[green]✓[/green] ' + ffmpeg if ffmpeg else '[red]✗ NOT FOUND[/red]'}"
-        )
+        if ffmpeg:
+            console.print(f"FFmpeg: [green]found[/green] {ffmpeg}")
+        else:
+            console.print("FFmpeg: [red]NOT FOUND[/red]")
 
         # Registered backends
         console.print("\n[bold]Registered backends:[/bold]")

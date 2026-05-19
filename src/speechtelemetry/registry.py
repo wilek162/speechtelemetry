@@ -27,34 +27,46 @@ logger = logging.getLogger(__name__)
 
 _REGISTRY: dict[str, dict[str, str]] = {
     "asr": {
+        # ── Implemented ──────────────────────────────────────────────────────
         "faster-whisper": "speechtelemetry.backends.asr.faster_whisper.FasterWhisperBackend",
-        "whisperx": "speechtelemetry.backends.asr.whisperx.WhisperXASRBackend",
-        "whisper.cpp": "speechtelemetry.backends.asr.whisper_cpp.WhisperCppBackend",
-        "sensevoice": "speechtelemetry.backends.asr.sensevoice.SenseVoiceBackend",
+        # ── Planned (not yet implemented) ────────────────────────────────────
+        "whisperx": "speechtelemetry.backends.asr.whisperx.WhisperXASRBackend",  # future
+        "whisper.cpp": "speechtelemetry.backends.asr.whisper_cpp.WhisperCppBackend",  # future
+        "sensevoice": "speechtelemetry.backends.asr.sensevoice.SenseVoiceBackend",  # future
     },
     "vad": {
+        # ── Implemented ──────────────────────────────────────────────────────
         "silero": "speechtelemetry.backends.vad.silero.SileroVADBackend",
-        "funasr": "speechtelemetry.backends.vad.funasr.FunASRVADBackend",
+        # ── Planned (not yet implemented) ────────────────────────────────────
+        "funasr": "speechtelemetry.backends.vad.funasr.FunASRVADBackend",  # future
     },
     "alignment": {
+        # ── Implemented ──────────────────────────────────────────────────────
         "whisperx": "speechtelemetry.backends.alignment.whisperx.WhisperXAlignmentBackend",
-        "forcealign": "speechtelemetry.backends.alignment.forcealign.ForceAlignBackend",
+        # ── Planned (not yet implemented) ────────────────────────────────────
+        "forcealign": "speechtelemetry.backends.alignment.forcealign.ForceAlignBackend",  # future
     },
     "diarization": {
+        # ── Implemented ──────────────────────────────────────────────────────
         "pyannote": "speechtelemetry.backends.diarization.pyannote.PyannoteBackend",
-        "funasr": "speechtelemetry.backends.diarization.funasr.FunASRDiarizationBackend",
+        # ── Planned (not yet implemented) ────────────────────────────────────
+        "funasr": "speechtelemetry.backends.diarization.funasr.FunASRDiarizationBackend",  # future
     },
     "prosody": {
+        # ── Implemented ──────────────────────────────────────────────────────
         "parselmouth": "speechtelemetry.backends.prosody.parselmouth.ParselmouthBackend",
         # GPL-3.0 — see docs/license_policy.md
-        "copasul": "speechtelemetry.backends.prosody.copasul.CoPaSulBackend",
-        "librosa": "speechtelemetry.backends.prosody.librosa.LibrosaBackend",
-        "audioflux": "speechtelemetry.backends.prosody.audioflux.AudioFluxBackend",
+        # ── Planned (not yet implemented) ────────────────────────────────────
+        "copasul": "speechtelemetry.backends.prosody.copasul.CoPaSulBackend",  # future; MIT
+        "librosa": "speechtelemetry.backends.prosody.librosa.LibrosaBackend",  # future; MIT
+        "audioflux": "speechtelemetry.backends.prosody.audioflux.AudioFluxBackend",  # future; Apache 2.0
     },
     "emotion": {
+        # ── Implemented ──────────────────────────────────────────────────────
         "speechbrain": "speechtelemetry.backends.emotion.speechbrain.SpeechBrainEmotionBackend",
-        "emotion2vec": "speechtelemetry.backends.emotion.emotion2vec.Emotion2VecBackend",
-        "emobox": "speechtelemetry.backends.emotion.emobox.EmoBoxBackend",
+        # ── Planned (not yet implemented) ────────────────────────────────────
+        "emotion2vec": "speechtelemetry.backends.emotion.emotion2vec.Emotion2VecBackend",  # future; Apache 2.0
+        "emobox": "speechtelemetry.backends.emotion.emobox.EmoBoxBackend",  # future; MIT
     },
     "exporter": {
         "json": "speechtelemetry.exporters.json_exporter.JsonExporter",
