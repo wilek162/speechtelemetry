@@ -15,7 +15,7 @@ Before making any change, consult documents in this priority order:
 ## Setup
 
 ```powershell
-git clone https://github.com/speechtelemetry/speechtelemetry.git
+git clone https://github.com/wilek162/speechtelemetry.git
 cd speechtelemetry
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1        # Windows

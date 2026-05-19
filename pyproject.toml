@@ -63,11 +63,11 @@ speechtelemetry = "speechtelemetry.cli.main:main"
 # populated by third-party packages, not by this project
 
 [project.urls]
-Homepage = "https://github.com/speechtelemetry/speechtelemetry"
-Documentation = "https://github.com/speechtelemetry/speechtelemetry/tree/main/docs"
-Repository = "https://github.com/speechtelemetry/speechtelemetry"
-Issues = "https://github.com/speechtelemetry/speechtelemetry/issues"
-Changelog = "https://github.com/speechtelemetry/speechtelemetry/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/wilek162/speechtelemetry"
+Documentation = "https://github.com/wilek162/speechtelemetry/tree/master/docs"
+Repository = "https://github.com/wilek162/speechtelemetry"
+Issues = "https://github.com/wilek162/speechtelemetry/issues"
+Changelog = "https://github.com/wilek162/speechtelemetry/blob/master/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/speechtelemetry"]
