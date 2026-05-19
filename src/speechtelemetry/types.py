@@ -14,6 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+SCHEMA_VERSION = "1.0"
+
 # ── Word ──────────────────────────────────────────────────────────────────────
 
 
@@ -152,6 +154,26 @@ class ProcessingReport:
         )
 
 
+# ── SpeakerProfile ────────────────────────────────────────────────────────────
+
+
+@dataclass
+class SpeakerProfile:
+    """Per-speaker aggregate statistics derived from the transcript.
+
+    Computed automatically when diarization runs. All fields are derived
+    from the segment data — no extra inference is required.
+    """
+
+    speaker_id: str  # e.g. "SPEAKER_00"
+    speaking_time_s: float  # sum of (seg.end - seg.start) for all segments
+    turn_count: int  # number of distinct segments attributed to this speaker
+    word_count: int  # total aligned words spoken by this speaker
+    mean_segment_confidence: float  # mean ASR confidence across speaker's segments
+    dominant_emotion: str | None = None  # emotion label with highest mean probability
+    emotion_distribution: dict[str, float] | None = None  # mean probability per label
+
+
 # ── TranscriptDocument ────────────────────────────────────────────────────────
 
 
@@ -161,6 +183,7 @@ class TranscriptDocument:
 
     Every field that can be absent uses Optional[T] = None.
     processing_report is always present.
+    schema_version identifies the data model version for downstream tooling.
     """
 
     source_path: str
@@ -170,3 +193,5 @@ class TranscriptDocument:
     silence_spans: list[SilenceSpan]
     processing_report: ProcessingReport
     provenance: object | None = None  # PipelineProvenance; typed as object to avoid circular import
+    schema_version: str = SCHEMA_VERSION  # data model version
+    speakers: list[SpeakerProfile] | None = None  # per-speaker stats; None if diarization disabled

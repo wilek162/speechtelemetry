@@ -1,11 +1,13 @@
 """Unit tests for speechtelemetry.types — pure data model, zero external deps."""
 
 from speechtelemetry.types import (
+    SCHEMA_VERSION,
     EmotionScore,
     ProcessingReport,
     ProsodyWindow,
     Segment,
     SilenceSpan,
+    SpeakerProfile,
     StageError,
     TranscriptDocument,
     Word,
@@ -115,3 +117,82 @@ def test_transcript_document_null_language():
         processing_report=ProcessingReport(),
     )
     assert doc.language is None
+
+
+def test_transcript_document_schema_version_default():
+    doc = TranscriptDocument(
+        source_path="test.wav",
+        language="en",
+        duration_s=1.0,
+        segments=[],
+        silence_spans=[],
+        processing_report=ProcessingReport(),
+    )
+    assert doc.schema_version == SCHEMA_VERSION
+    assert isinstance(doc.schema_version, str)
+
+
+def test_transcript_document_speakers_none_by_default():
+    doc = TranscriptDocument(
+        source_path="test.wav",
+        language="en",
+        duration_s=1.0,
+        segments=[],
+        silence_spans=[],
+        processing_report=ProcessingReport(),
+    )
+    assert doc.speakers is None
+
+
+def test_transcript_document_speakers_field_accepts_list():
+    profile = SpeakerProfile(
+        speaker_id="SPEAKER_00",
+        speaking_time_s=10.0,
+        turn_count=3,
+        word_count=25,
+        mean_segment_confidence=0.75,
+    )
+    doc = TranscriptDocument(
+        source_path="test.wav",
+        language="en",
+        duration_s=15.0,
+        segments=[],
+        silence_spans=[],
+        processing_report=ProcessingReport(),
+        speakers=[profile],
+    )
+    assert doc.speakers is not None
+    assert len(doc.speakers) == 1
+    assert doc.speakers[0].speaker_id == "SPEAKER_00"
+
+
+def test_speaker_profile_minimal():
+    sp = SpeakerProfile(
+        speaker_id="SPEAKER_01",
+        speaking_time_s=5.5,
+        turn_count=2,
+        word_count=12,
+        mean_segment_confidence=0.82,
+    )
+    assert sp.speaker_id == "SPEAKER_01"
+    assert sp.dominant_emotion is None
+    assert sp.emotion_distribution is None
+
+
+def test_speaker_profile_with_emotion():
+    sp = SpeakerProfile(
+        speaker_id="SPEAKER_00",
+        speaking_time_s=20.0,
+        turn_count=8,
+        word_count=85,
+        mean_segment_confidence=0.68,
+        dominant_emotion="ang",
+        emotion_distribution={"neu": 0.1, "ang": 0.7, "hap": 0.1, "sad": 0.1},
+    )
+    assert sp.dominant_emotion == "ang"
+    assert abs(sum(sp.emotion_distribution.values()) - 1.0) < 0.01
+
+
+def test_schema_version_constant_is_string():
+    assert isinstance(SCHEMA_VERSION, str)
+    assert len(SCHEMA_VERSION) > 0

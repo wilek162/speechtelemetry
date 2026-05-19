@@ -37,6 +37,7 @@ from speechtelemetry.types import (
     ProsodyWindow,
     Segment,
     SilenceSpan,
+    SpeakerProfile,
     StageError,
     TranscriptDocument,
     Word,
@@ -57,6 +58,7 @@ __all__ = [
     "SilenceSpan",
     "ProsodyWindow",
     "EmotionScore",
+    "SpeakerProfile",
     "ProcessingReport",
     "StageError",
     # Interfaces (for custom backend development)

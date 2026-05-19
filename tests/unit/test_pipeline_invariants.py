@@ -343,6 +343,84 @@ def test_silence_spans_end_after_start(doc_with_emotion):
         assert sp.end > sp.start, f"span{i}: end={sp.end} <= start={sp.start}"
 
 
+# ── Speaker profile invariants ────────────────────────────────────────────────
+
+
+def test_speakers_none_when_no_diarization(doc_with_emotion):
+    """When diarization is disabled, speakers must be None."""
+    assert doc_with_emotion.speakers is None, (
+        "speakers should be None when diarization_backend=None"
+    )
+
+
+def test_speakers_none_on_doc_no_emotion(doc_no_emotion):
+    assert doc_no_emotion.speakers is None
+
+
+# ── Schema version invariants ─────────────────────────────────────────────────
+
+
+def test_schema_version_present(doc_with_emotion):
+    from speechtelemetry.types import SCHEMA_VERSION
+
+    assert doc_with_emotion.schema_version == SCHEMA_VERSION
+
+
+def test_json_output_has_schema_version(doc_with_emotion, tmp_path):
+    """JSON export must include schema_version as the first key."""
+    import json
+
+    from speechtelemetry.exporters.json_exporter import JsonExporter
+
+    out = str(tmp_path / "schema_test.json")
+    JsonExporter().export(doc_with_emotion, out)
+    data = json.loads(Path(out).read_text())
+    assert "schema_version" in data
+    assert list(data.keys())[0] == "schema_version"
+
+
+def test_json_output_floats_clean(doc_with_emotion, tmp_path):
+    """JSON output must not contain floating-point noise."""
+
+    from speechtelemetry.exporters.json_exporter import JsonExporter
+
+    out = str(tmp_path / "float_test.json")
+    JsonExporter().export(doc_with_emotion, out)
+    raw = Path(out).read_text()
+    # No floating-point trailing 9s or 0s noise
+    assert "9999999" not in raw
+    assert "0000001" not in raw
+    # No scientific notation from near-zero values
+    assert "e-" not in raw
+
+
+def test_srt_no_overlaps_on_real_wav_output(doc_with_emotion, tmp_path):
+    """SRT produced from mock pipeline output must have non-overlapping cues."""
+    import re
+
+    from speechtelemetry.exporters.srt import SRTExporter
+
+    out = str(tmp_path / "pipeline_test.srt")
+    SRTExporter().export(doc_with_emotion, out)
+    content = Path(out).read_text()
+
+    ts_pattern = re.compile(r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})")
+    matches = ts_pattern.findall(content)
+
+    def to_ms(ts: str) -> int:
+        h, m, rest = ts.split(":")
+        s, ms = rest.split(",")
+        return int(h) * 3_600_000 + int(m) * 60_000 + int(s) * 1000 + int(ms)
+
+    prev_end = 0
+    for start_str, end_str in matches:
+        start_ms = to_ms(start_str)
+        assert start_ms >= prev_end, (
+            f"SRT overlap: cue start={start_str} ({start_ms}ms) < prev_end={prev_end}ms"
+        )
+        prev_end = to_ms(end_str)
+
+
 def test_silence_spans_reason_is_valid(doc_with_emotion):
     valid_reasons = {"speech_gap", "non_speech", "overlap"}
     for i, sp in enumerate(doc_with_emotion.silence_spans):

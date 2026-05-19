@@ -1,7 +1,12 @@
 """SRT subtitle exporter — lossy derived view.
 
 Lossy: only text and timestamps are preserved.
-Speaker labels, prosody, emotion, and word-level data are dropped.
+Speaker labels are prefixed in brackets: [SPEAKER_00] text.
+
+Timestamp overlap fix: ASR segment boundaries sometimes overlap by a few
+milliseconds (e.g. seg[i].end = 1.021, seg[i+1].start = 1.000). SRT requires
+strictly non-overlapping cues. Each cue's start is clamped to max(start, prev_end)
+so subtitles never overlap or display simultaneously.
 """
 
 from __future__ import annotations
@@ -26,14 +31,22 @@ class SRTExporter(Exporter):
     """Export to SubRip (.srt) subtitle format. Lossy — text + timestamps only."""
 
     def export(self, doc: TranscriptDocument, output_path: str) -> None:
-        lines = []
+        lines: list[str] = []
+        prev_end_ms = 0
+
         for i, seg in enumerate(doc.segments, start=1):
-            start = _format_srt_time(seg.start)
-            end = _format_srt_time(seg.end)
+            # Clamp start to previous end to prevent overlapping cues
+            start_ms = max(round(seg.start * 1000), prev_end_ms)
+            end_ms = max(round(seg.end * 1000), start_ms + 1)
+            prev_end_ms = end_ms
+
             text = seg.text.strip()
             if seg.speaker:
                 text = f"[{seg.speaker}] {text}"
-            lines.append(f"{i}\n{start} --> {end}\n{text}\n")
+
+            lines.append(
+                f"{i}\n{_format_srt_time(start_ms / 1000)} --> {_format_srt_time(end_ms / 1000)}\n{text}\n"
+            )
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))

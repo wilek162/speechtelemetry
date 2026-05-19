@@ -29,6 +29,7 @@ from speechtelemetry.types import (
     ProsodyWindow,
     Segment,
     SilenceSpan,
+    SpeakerProfile,
     TranscriptDocument,
     Word,
 )
@@ -383,6 +384,8 @@ def run_pipeline(
             len(report.errors),
         )
 
+        speakers = _compute_speaker_profiles(segments)
+
         doc = TranscriptDocument(
             source_path=input_path,
             language=detected_language,
@@ -391,6 +394,7 @@ def run_pipeline(
             silence_spans=silence_spans,
             processing_report=report,
             provenance=provenance,
+            speakers=speakers,
         )
 
         # ── Stage 9: Export ───────────────────────────────────────────────
@@ -686,3 +690,54 @@ def _attach_emotion(
     logger.debug("[emotion] Done in %.3fs → %d/%d segments scored", elapsed, scored, len(segments))
 
     return segments
+
+
+def _compute_speaker_profiles(segments: list[Segment]) -> list[SpeakerProfile] | None:
+    """Derive per-speaker aggregate statistics from a completed segment list.
+
+    Returns None when no diarization ran (all speakers are None).
+    """
+    from collections import defaultdict  # noqa: PLC0415
+
+    if not any(s.speaker for s in segments):
+        return None
+
+    by_speaker: dict[str, list[Segment]] = defaultdict(list)
+    for seg in segments:
+        if seg.speaker:
+            by_speaker[seg.speaker].append(seg)
+
+    profiles: list[SpeakerProfile] = []
+    for speaker_id in sorted(by_speaker.keys()):
+        segs = by_speaker[speaker_id]
+
+        speaking_time_s = sum(s.end - s.start for s in segs)
+        word_count = sum(len(s.words) for s in segs if s.words)
+        mean_conf = sum(s.confidence for s in segs) / len(segs)
+
+        # Mean emotion distribution across all emotion-scored segments
+        emotion_segs = [s for s in segs if s.emotion is not None]
+        dominant_emotion: str | None = None
+        emotion_distribution: dict[str, float] | None = None
+        if emotion_segs:
+            label_totals: dict[str, float] = defaultdict(float)
+            for s in emotion_segs:
+                for lbl, prob in s.emotion.label_distribution.items():  # type: ignore[union-attr]
+                    label_totals[lbl] += prob
+            n = len(emotion_segs)
+            emotion_distribution = {lbl: total / n for lbl, total in label_totals.items()}
+            dominant_emotion = max(emotion_distribution, key=emotion_distribution.__getitem__)
+
+        profiles.append(
+            SpeakerProfile(
+                speaker_id=speaker_id,
+                speaking_time_s=round(speaking_time_s, 3),
+                turn_count=len(segs),
+                word_count=word_count,
+                mean_segment_confidence=round(mean_conf, 4),
+                dominant_emotion=dominant_emotion,
+                emotion_distribution=emotion_distribution,
+            )
+        )
+
+    return profiles
