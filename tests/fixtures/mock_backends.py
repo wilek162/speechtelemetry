@@ -73,7 +73,12 @@ class MockAlignmentBackend(AlignmentBackend):
 
 
 class MockEmotionBackend(EmotionBackend):
-    """Returns a fixed neutral emotion score for every segment."""
+    """Returns a fixed IEMOCAP-format emotion score for every segment.
+
+    Uses the same abbreviated label names as the real SpeechBrain IEMOCAP model
+    (neu, ang, hap, sad) so mock-based tests accurately reflect real output structure.
+    Probabilities sum to 1.0.
+    """
 
     def predict_segment(
         self,
@@ -82,7 +87,7 @@ class MockEmotionBackend(EmotionBackend):
         end_s: float,
     ) -> dict[str, object]:
         return {
-            "label_distribution": {"neutral": 0.8, "happy": 0.2},
-            "confidence": 0.85,
-            "backend_name": "mock-emotion",
+            "label_distribution": {"neu": 0.70, "ang": 0.10, "hap": 0.15, "sad": 0.05},
+            "confidence": 0.70,
+            "backend_name": "mock-emotion-iemocap",
         }

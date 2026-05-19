@@ -354,10 +354,10 @@ def run_pipeline(
         segments = _attach_silence_gaps(segments, silence_spans)
 
         # ── Stage 7: Prosody ──────────────────────────────────────────────
-        segments = _attach_prosody(segments, wav_path, config, report)
+        segments = _attach_prosody(segments, wav_path, config, report, provenance)
 
         # ── Stage 8: Emotion ──────────────────────────────────────────────
-        segments = _attach_emotion(segments, wav_path, config, report)
+        segments = _attach_emotion(segments, wav_path, config, report, provenance)
 
         # ── Finalize report ───────────────────────────────────────────────
         wall_time = time.perf_counter() - audio_start
@@ -554,6 +554,7 @@ def _attach_prosody(
     wav_path: str,
     config: PipelineConfig,
     report: ProcessingReport | None = None,
+    provenance: PipelineProvenance | None = None,
 ) -> list[Segment]:
     """Attach prosody features to each segment. Fail-soft per segment."""
     if not config.prosody_backend:
@@ -569,6 +570,9 @@ def _attach_prosody(
                 report.add_error("prosody", exc)
             logger.error("Prosody backend '%s' unavailable: %s", pb_name, exc)
             continue
+
+        if provenance:
+            provenance.record("prosody", pb_name)
 
         for i, seg in enumerate(segments):
             duration = seg.end - seg.start
@@ -622,6 +626,7 @@ def _attach_emotion(
     wav_path: str,
     config: PipelineConfig,
     report: ProcessingReport | None = None,
+    provenance: PipelineProvenance | None = None,
 ) -> list[Segment]:
     """Attach emotion scores to each segment. Fail-soft per segment."""
     if not config.emotion_backend:
@@ -636,6 +641,9 @@ def _attach_emotion(
             report.add_error("emotion", exc)
         logger.error("[emotion] Backend unavailable: %s", exc)
         return segments
+
+    if provenance:
+        provenance.record("emotion", config.emotion_backend, device=config.device)
 
     scored = 0
     for i, seg in enumerate(segments):
