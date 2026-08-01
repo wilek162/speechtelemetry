@@ -112,6 +112,8 @@ def _patch_pyannote_compat() -> None:
         if hasattr(_pls, "pl_load"):
             _pls.pl_load = _compat_load
         logger.debug("weights_only=False compat patch applied to pl_load in all locations")
+    except Exception as exc:
+        logger.debug("lightning compatibility patch skipped: %s", exc)
 
 
 if _AVAILABLE:
