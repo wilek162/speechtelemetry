@@ -106,8 +106,12 @@ def _patch_pyannote_compat() -> None:
         _pam.pl_load = _compat_load
         _pls.pl_load = _compat_load  # type: ignore[attr-defined]
         logger.debug("weights_only=False compat patch applied to pl_load in all locations")
-    except Exception as exc:
-        logger.debug("pl_load weights_only patch skipped: %s", exc)
+        _lf._load = _compat_load
+        if hasattr(_pam, "pl_load"):
+            _pam.pl_load = _compat_load
+        if hasattr(_pls, "pl_load"):
+            _pls.pl_load = _compat_load
+        logger.debug("weights_only=False compat patch applied to pl_load in all locations")
 
 
 if _AVAILABLE:
