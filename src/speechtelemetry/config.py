@@ -23,7 +23,7 @@ class PipelineConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    # ── Device ────────────────────────────────────────────────────────────────
+    # ── Device ────────────────────────────────────────────────────────────────────────
     device: Literal["auto", "cpu", "cuda"] = Field(
         default="auto",
         description=(
@@ -32,7 +32,7 @@ class PipelineConfig(BaseModel):
         ),
     )
 
-    # ── ASR ───────────────────────────────────────────────────────────────────
+    # ── ASR ────────────────────────────────────────────────────────────────────────
     asr_backend: Literal["faster-whisper", "whisperx", "whisper.cpp", "sensevoice"] = Field(
         default="faster-whisper",
         description="ASR backend. faster-whisper is the MIT-licensed default.",
@@ -51,7 +51,7 @@ class PipelineConfig(BaseModel):
     )
     asr_beam_size: int = Field(default=5, ge=1, le=10)
 
-    # ── VAD ───────────────────────────────────────────────────────────────────
+    # ── VAD ────────────────────────────────────────────────────────────────────────
     vad_backend: Literal["silero", "funasr"] = Field(
         default="silero",
         description="VAD backend. silero is MIT-licensed, fast, and CPU-first.",
@@ -60,13 +60,13 @@ class PipelineConfig(BaseModel):
     vad_min_silence_ms: int = Field(default=300, ge=0)
     vad_min_speech_ms: int = Field(default=250, ge=0)
 
-    # ── Alignment ─────────────────────────────────────────────────────────────
+    # ── Alignment ────────────────────────────────────────────────────────────────────────
     alignment_backend: Literal["whisperx", "forcealign"] = Field(
         default="whisperx",
         description="Word-level forced alignment backend.",
     )
 
-    # ── Diarization ───────────────────────────────────────────────────────────
+    # ── Diarization ────────────────────────────────────────────────────────────────────────
     diarization_backend: Literal["pyannote", "funasr"] | None = Field(
         default=None,
         description=(
@@ -77,7 +77,7 @@ class PipelineConfig(BaseModel):
     diarization_min_speakers: int | None = Field(default=None, ge=1)
     diarization_max_speakers: int | None = Field(default=None, ge=1)
 
-    # ── Prosody ───────────────────────────────────────────────────────────────
+    # ── Prosody ────────────────────────────────────────────────────────────────────────
     prosody_backend: list[Literal["parselmouth", "copasul", "librosa", "audioflux"]] = Field(
         default_factory=list,
         description=(
@@ -86,20 +86,30 @@ class PipelineConfig(BaseModel):
             "See docs/license_policy.md."
         ),
     )
-
-    # ── Emotion ───────────────────────────────────────────────────────────────
-    emotion_backend: Literal["speechbrain", "emotion2vec", "emobox"] | None = Field(
-        default="speechbrain",
-        description="Emotion recognition backend. Apache 2.0 licensed.",
+    prosody_min_segment_duration_s: float = Field(
+        default=0.04,
+        gt=0,
+        description="Minimum segment duration (seconds) for prosody extraction. Shorter segments are skipped.",
     )
 
-    # ── Export ────────────────────────────────────────────────────────────────
+    # ── Emotion ────────────────────────────────────────────────────────────────────────
+    emotion_backend: Literal["speechbrain", "emotion2vec", "emobox"] | None = Field(
+        default=None,
+        description="Emotion recognition backend. None disables emotion recognition. Apache 2.0 licensed.",
+    )
+    emotion_min_segment_duration_s: float = Field(
+        default=0.5,
+        gt=0,
+        description="Minimum segment duration (seconds) for emotion recognition. Shorter segments are skipped.",
+    )
+
+    # ── Export ────────────────────────────────────────────────────────────────────────
     export_formats: list[Literal["json", "srt", "vtt", "textgrid"]] = Field(
         default_factory=lambda: ["json"],  # type: ignore[arg-type]
         description="Output formats. JSON is the authoritative lossless format.",
     )
 
-    # ── Performance ───────────────────────────────────────────────────────────
+    # ── Performance ────────────────────────────────────────────────────────────────────────
     chunk_audio: bool = Field(
         default=True,
         description="Process audio in chunks to reduce peak memory usage.",

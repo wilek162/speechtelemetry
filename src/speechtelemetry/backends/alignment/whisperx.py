@@ -74,10 +74,16 @@ class WhisperXAlignmentBackend(AlignmentBackend):
                     pass
 
             logger.info("WhisperX: loading alignment model for language '%s'", language)
+            # Bug #3: Add error handling for model load failures
             self._align_model, self._metadata = whisperx.load_align_model(
                 language_code=language,
                 device=self.device,
             )
+            if self._align_model is None or self._metadata is None:
+                raise BackendNotAvailableError(
+                    f"Failed to load WhisperX alignment model for language '{language}'. "
+                    f"Check that the language is supported and models can be downloaded."
+                )
             self._loaded_lang = language
 
         audio = whisperx.load_audio(audio_path)

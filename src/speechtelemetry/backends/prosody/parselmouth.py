@@ -11,6 +11,7 @@ No Praat installation required — binary wheels ship for Win/Linux/macOS.
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import Any, ClassVar
 
 import numpy as np
@@ -51,7 +52,6 @@ class ParselmouthBackend(ProsodyBackend):
         self.pitch_floor = pitch_floor
         self.pitch_ceiling = pitch_ceiling
         self.time_step = time_step
-        self._sound_cache: dict[str, object] = {}
 
     @classmethod
     def _check_available(cls) -> None:
@@ -60,11 +60,20 @@ class ParselmouthBackend(ProsodyBackend):
                 "praat-parselmouth is not installed.\nRun: pip install praat-parselmouth"
             )
 
+    @lru_cache(maxsize=10)
     def _get_sound(self, wav_path: str) -> object:
-        """Load and cache parselmouth.Sound object (loaded once per wav_path)."""
-        if wav_path not in self._sound_cache:
-            self._sound_cache[wav_path] = parselmouth.Sound(wav_path)
-        return self._sound_cache[wav_path]
+        """Load and cache parselmouth.Sound object (loaded once per wav_path).
+        
+        Bug #6: Use lru_cache to bound memory usage. Caches up to 10 files.
+        Older entries are evicted automatically.
+        """
+        logger.debug("Parselmouth: loading sound from %s", wav_path)
+        return parselmouth.Sound(wav_path)  # type: ignore[no-any-return]
+
+    def clear_cache(self) -> None:
+        """Clear the sound cache. Call between pipeline runs."""
+        self._get_sound.cache_clear()
+        logger.debug("Parselmouth: sound cache cleared")
 
     def extract_segment(
         self,
@@ -89,7 +98,7 @@ class ParselmouthBackend(ProsodyBackend):
             preserve_times=False,
         )
 
-        # ── Pitch (F0) ───────────────────────────────────────────────────
+        # ── Pitch (F0) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
         pitch = snd.to_pitch(
             time_step=self.time_step,
             pitch_floor=self.pitch_floor,
@@ -100,7 +109,7 @@ class ParselmouthBackend(ProsodyBackend):
         f0_mean = float(np.mean(voiced_frames)) if len(voiced_frames) > 0 else 0.0
         f0_variance = float(np.var(voiced_frames)) if len(voiced_frames) > 0 else 0.0
 
-        # ── Intensity (Energy) ───────────────────────────────────────────
+        # ── Intensity (Energy) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
         intensity = snd.to_intensity(
             minimum_pitch=self.pitch_floor,
             time_step=self.time_step,
@@ -109,7 +118,7 @@ class ParselmouthBackend(ProsodyBackend):
         energy_std = float(call(intensity, "Get standard deviation", 0, 0))
         energy_variance = energy_std**2
 
-        # ── Voice Quality ────────────────────────────────────────────────
+        # ── Voice Quality ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
         jitter: float | None = None
         shimmer: float | None = None
         hnr: float | None = None
