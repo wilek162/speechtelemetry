@@ -79,4 +79,5 @@ class SileroVADBackend(VADBackend):
             len(timestamps),
             timestamps[:3] if timestamps else [],
         )
-        return timestamps  # type: ignore[no-any-return]
+        # Bug #2: Explicitly construct output to match contract, avoiding pass-through issues
+        return [{"start": float(ts["start"]), "end": float(ts["end"])} for ts in timestamps]
