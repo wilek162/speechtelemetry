@@ -103,23 +103,20 @@ class SpeechBrainEmotionBackend(EmotionBackend):
             for i in range(n_classes)
         ]
         label_distribution = dict(zip(labels, probs, strict=False))
-        top = (
-            text_lab[0] if text_lab else max(label_distribution, key=label_distribution.__getitem__)
-        )
+
         conf = float(score.squeeze())
 
         logger.debug(
             "SpeechBrain: [%.2f-%.2f] top=%s (%.3f) dist=%s",
             start_s,
             end_s,
-            top,
+            max(label_distribution, key=label_distribution.__getitem__),
             conf,
             {k: round(v, 3) for k, v in label_distribution.items()},
         )
 
         return {
             "label_distribution": label_distribution,
-            "top_label": top,
             "confidence": conf,
             "backend_name": self.MODEL_HF,
         }
